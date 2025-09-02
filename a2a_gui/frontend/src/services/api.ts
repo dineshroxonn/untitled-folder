@@ -3,7 +3,13 @@ import type { StreamChunk } from '../types';
 export const api = {
   checkAgentStatus: () => fetch('/api/agent-status').then(res => res.json()),
   getConnectionInfo: () => fetch('/api/connection-info').then(res => res.json()),
-  connectObd: () => fetch('/api/connect-obd', { method: 'POST' }),
+  connectObd: (config: any = null) => fetch('/api/connect-obd', { 
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ config })
+  }),
   disconnectObd: () => fetch('/api/disconnect-obd', { method: 'POST' }),
   sendMessage: (message: string, onChunk: (chunk: StreamChunk) => void, onError: (err: Error) => void) => {
     const eventSource = new EventSource(`/api/diagnose?message=${encodeURIComponent(message)}`);

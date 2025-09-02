@@ -67,14 +67,33 @@ class OBDInterfaceManager:
         Establish connection to OBD-II adapter.
         
         Args:
-            config: Optional configuration override
+            config: Optional configuration override (can be dict or OBDConnectionConfig)
             
         Returns:
             OBDResponse indicating connection success/failure
         """
         async with self._connection_lock:
             if config:
-                self.config = config
+                # If config is a dictionary, convert it to OBDConnectionConfig
+                if isinstance(config, dict):
+                    # Convert protocol string to enum if needed
+                    protocol = config.get("protocol", "auto")
+                    if isinstance(protocol, str):
+                        try:
+                            protocol = OBDProtocol(protocol)
+                        except ValueError:
+                            protocol = OBDProtocol.AUTO
+                    
+                    self.config = OBDConnectionConfig(
+                        port=config.get("port", "auto"),
+                        baudrate=config.get("baudrate", 38400),
+                        timeout=config.get("timeout", 30.0),
+                        protocol=protocol,
+                        auto_detect=config.get("auto_detect", True),
+                        max_retries=config.get("max_retries", 3)
+                    )
+                else:
+                    self.config = config
                 
             try:
                 await self._attempt_connection()
@@ -104,8 +123,8 @@ class OBDInterfaceManager:
             OBDProtocol.AUTO: None,
             OBDProtocol.SAE_J1850_PWM: obd.protocols.SAE_J1850_PWM,
             OBDProtocol.SAE_J1850_VPW: obd.protocols.SAE_J1850_VPW,
-            OBDProtocol.ISO_14230_4: obd.protocols.ISO_14230_4,
-            OBDProtocol.ISO_15765_4: obd.protocols.ISO_15765_4,
+            OBDProtocol.ISO_14230_4: obd.protocols.ISO_14230_4_5baud,  # Use the correct protocol name
+            OBDProtocol.ISO_15765_4: obd.protocols.ISO_15765_4_11bit_500k,  # Use a common CAN protocol
             OBDProtocol.ISO_9141_2: obd.protocols.ISO_9141_2,
         }
         
@@ -181,39 +200,50 @@ class OBDInterfaceManager:
                 error_message="Not connected to OBD adapter"
             )
         
-        try:
-            # Execute query in thread pool to avoid blocking
-            loop = asyncio.get_event_loop()
-            response = await loop.run_in_executor(
-                None,
-                self._connection.query,
-                command
-            )
-            
-            if response.is_null():
+        # Try up to 3 times with a small delay between attempts
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                # Execute query in thread pool to avoid blocking
+                loop = asyncio.get_event_loop()
+                response = await loop.run_in_executor(
+                    None,
+                    self._connection.query,
+                    command
+                )
+                
+                if response.is_null():
+                    # If this is not the last attempt, wait before retrying
+                    if attempt < max_retries - 1:
+                        await asyncio.sleep(0.1 * (attempt + 1))  # Exponential backoff
+                        continue
+                    return OBDResponse(
+                        success=False,
+                        data=None,
+                        error_message=f"No data received for command {command.name}"
+                    )
+                
+                return OBDResponse(
+                    success=True,
+                    data={
+                        "command": command.name,
+                        "value": response.value,
+                        "unit": str(response.unit) if response.unit else None
+                    },
+                    timestamp=datetime.now()
+                )
+                
+            except Exception as e:
+                logger.error(f"Error executing OBD query {command.name} (attempt {attempt + 1}): {e}")
+                # If this is not the last attempt, wait before retrying
+                if attempt < max_retries - 1:
+                    await asyncio.sleep(0.1 * (attempt + 1))  # Exponential backoff
+                    continue
                 return OBDResponse(
                     success=False,
                     data=None,
-                    error_message=f"No data received for command {command.name}"
+                    error_message=str(e)
                 )
-            
-            return OBDResponse(
-                success=True,
-                data={
-                    "command": command.name,
-                    "value": response.value,
-                    "unit": str(response.unit) if response.unit else None
-                },
-                timestamp=datetime.now()
-            )
-            
-        except Exception as e:
-            logger.error(f"Error executing OBD query {command.name}: {e}")
-            return OBDResponse(
-                success=False,
-                data=None,
-                error_message=str(e)
-            )
     
     async def get_supported_commands(self) -> List[obd.OBDCommand]:
         """
