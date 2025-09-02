@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from typing import Optional, Dict, Any
@@ -7,9 +7,6 @@ from services.car_agent_client import agent_client, AgentStatus
 
 router = APIRouter()
 
-class DiagnosticRequest(BaseModel):
-    message: str
-
 class OBDConnectionRequest(BaseModel):
     config: Optional[Dict[str, Any]] = None
 
@@ -17,14 +14,14 @@ class OBDConnectionRequest(BaseModel):
 async def get_agent_status():
     return await agent_client.check_status()
 
-@router.post("/diagnose")
-async def diagnose_stream(request: DiagnosticRequest):
+@router.get("/diagnose")
+async def diagnose_stream(message: str = Query(..., description="The diagnostic message from the user.")):
     status = await agent_client.check_status()
     if not status.available:
         raise HTTPException(status_code=503, detail=f"Car diagnostic agent is not available: {status.error}")
     
     async def generate_stream():
-        async for chunk in agent_client.stream_diagnosis(request.message):
+        async for chunk in agent_client.stream_diagnosis(message):
             yield chunk
     
     return StreamingResponse(generate_stream(), media_type="text/event-stream")

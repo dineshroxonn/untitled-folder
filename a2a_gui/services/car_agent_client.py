@@ -63,9 +63,22 @@ class CarAgentClient:
 
     async def stream_diagnosis(self, message: str) -> AsyncGenerator[str, None]:
         """Stream diagnostic response from the car agent."""
-        payload = {"messages": [{"role": "user", "content": message}], "stream": True}
+        payload = {
+            "jsonrpc": "2.0",
+            "method": "execute",
+            "params": {
+                "message": {
+                    "parts": [
+                        {
+                            "text": message
+                        }
+                    ]
+                }
+            },
+            "id": "1"
+        }
         try:
-            async with self.client.stream("POST", f"{self.base_url}/invoke", json=payload, headers={"Content-Type": "application/json"}) as response:
+            async with self.client.stream("POST", f"{self.base_url}/", json=payload, headers={"Content-Type": "application/json"}) as response:
                 if response.status_code != 200:
                     error_text = await response.aread() # type: ignore
                     yield f"data: {json.dumps({'error': f'Agent error {response.status_code}: {error_text.decode()}'})}\n\n"

@@ -8,9 +8,7 @@ import { Button } from "@/components/ui/button";
 const formatTime = (date: Date) => 
   date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
 
-const formatContent = (content: string | React.ReactNode) => {
-  if (typeof content !== 'string') return content;
-  
+const formatContent = (content: string) => {
   // Enhanced formatting for diagnostic content
   return content
     .replace(/(\*\*)(.*?)\1/g, '<strong class="text-slate-100 font-semibold">$2</strong>')
@@ -92,14 +90,18 @@ export const ChatMessage: React.FC<{ message: Message }> = ({ message }) => {
               : "glass-effect border-slate-700/50 text-slate-100"
           )}>
             <div className="px-5 py-4">
-              <div 
-                className="whitespace-pre-wrap text-base leading-relaxed"
-                dangerouslySetInnerHTML={{ 
-                  __html: typeof message.content === 'string' 
-                    ? formatContent(message.content) 
-                    : String(message.content) 
-                }}
-              />
+              {typeof message.content === 'string' ? (
+                <div
+                  className="whitespace-pre-wrap text-base leading-relaxed"
+                  dangerouslySetInnerHTML={{
+                    __html: formatContent(message.content),
+                  }}
+                />
+              ) : (
+                <div className="whitespace-pre-wrap text-base leading-relaxed">
+                  {message.content}
+                </div>
+              )}
               
               <div className="flex items-center justify-between mt-3 pt-3 border-t border-current/10">
                 <div className="text-xs opacity-70 flex items-center space-x-2">

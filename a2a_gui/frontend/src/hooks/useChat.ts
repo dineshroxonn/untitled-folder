@@ -2,6 +2,8 @@ import { useState, useRef, useCallback } from 'react';
 import type { Message, MessageType, ConnectionStatus, ConnectionInfo } from '../types';
 import { api } from '../services/api';
 
+const generateUniqueId = () => Date.now().toString() + Math.random().toString(36).substring(7);
+
 export const useChat = () => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
@@ -13,7 +15,7 @@ export const useChat = () => {
   const addMessage = useCallback((type: MessageType, content: string | React.ReactNode) => {
     setMessages(prev => [
       ...prev,
-      { id: Date.now().toString(), type, content, timestamp: new Date() },
+      { id: generateUniqueId(), type, content, timestamp: new Date() },
     ]);
   }, []);
 
@@ -24,7 +26,7 @@ export const useChat = () => {
     setInput('');
     setIsLoading(true);
 
-    const agentMessageId = Date.now().toString() + '_agent';
+    const agentMessageId = generateUniqueId();
     let fullResponse = '';
     
     setMessages(prev => [
