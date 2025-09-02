@@ -64,6 +64,11 @@ class CarAgentClient:
         response = await self._agent_request("GET", "/connection_info")
         return response.json()
 
+    async def text_to_speech(self, text: str) -> bytes:
+        """Convert text to speech via the agent."""
+        response = await self._agent_request("POST", "/text-to-speech", json={"text": text})
+        return response.content
+
     async def stream_diagnosis(self, message: str) -> AsyncGenerator[str, None]:
         """Stream diagnostic response from the car agent."""
         message_id = f"{int(time.time())}-{ ''.join(random.choices(string.ascii_lowercase + string.digits, k=6))}"

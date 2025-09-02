@@ -1,7 +1,8 @@
-from fastapi import APIRouter, HTTPException, Query
-from fastapi.responses import StreamingResponse
+from fastapi import APIRouter, HTTPException, Query, Request
+from fastapi.responses import StreamingResponse, JSONResponse, Response
 from pydantic import BaseModel
 from typing import Optional, Dict, Any
+import httpx
 
 from services.car_agent_client import agent_client, AgentStatus
 
@@ -9,6 +10,9 @@ router = APIRouter()
 
 class OBDConnectionRequest(BaseModel):
     config: Optional[Dict[str, Any]] = None
+
+class TextToSpeechRequest(BaseModel):
+    text: str
 
 @router.get("/agent-status", response_model=AgentStatus)
 async def get_agent_status():
@@ -37,3 +41,48 @@ async def disconnect_obd_endpoint():
 @router.get("/connection-info")
 async def get_connection_info_endpoint():
     return await agent_client.get_connection_info()
+
+@router.get("/voice-status")
+async def get_voice_status():
+    """Proxy endpoint to check voice service status from the car diagnostic agent"""
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.get("http://localhost:10011/voice-status", timeout=5)
+            return JSONResponse(response.json())
+    except Exception as e:
+        return JSONResponse({"available": False, "error": str(e)}, status_code=503)
+
+@router.post("/text-to-speech")
+async def text_to_speech(request: Request):
+    """Proxy endpoint to convert text to speech via the car diagnostic agent"""
+    try:
+        # Get the request body
+        body = await request.json()
+        text = body.get("text", "")
+        
+        if not text:
+            return JSONResponse({"success": False, "error": "No text provided"}, status_code=400)
+        
+        # Forward the request to the car diagnostic agent
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                "http://localhost:10011/text-to-speech",
+                json={"text": text},
+                headers={"Content-Type": "application/json"},
+                timeout=30
+            )
+            
+            if response.status_code == 200:
+                # Return the audio data
+                return Response(
+                    content=response.content,
+                    media_type="audio/wav",
+                    headers={"Content-Disposition": "inline; filename=speech.wav"}
+                )
+            else:
+                return JSONResponse(
+                    {"success": False, "error": f"Voice service error: {response.status_code}"}, 
+                    status_code=response.status_code
+                )
+    except Exception as e:
+        return JSONResponse({"success": False, "error": str(e)}, status_code=500)
