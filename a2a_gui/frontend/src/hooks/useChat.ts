@@ -21,14 +21,15 @@ export const useChat = () => {
 
   const handleSendMessage = useCallback(async (content: string) => {
     if (!content.trim() || isLoading) return;
-    
+
     addMessage('user', content);
     setInput('');
     setIsLoading(true);
 
     const agentMessageId = generateUniqueId();
     let fullResponse = '';
-    
+    let streamCompleted = false;
+
     setMessages(prev => [
       ...prev,
       { id: agentMessageId, type: 'agent', content: '', timestamp: new Date() }
@@ -50,11 +51,14 @@ export const useChat = () => {
           setIsLoading(false);
         }
         if (data.status === 'complete') {
+          streamCompleted = true;
           setIsLoading(false);
         }
       },
       (error) => {
-        addMessage('error', error.message);
+        if (!streamCompleted) {
+          addMessage('error', error.message);
+        }
         setIsLoading(false);
       }
     );
