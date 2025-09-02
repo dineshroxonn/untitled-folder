@@ -58,10 +58,9 @@ Maintain a helpful and knowledgeable tone throughout. If you detect critical iss
         self.vehicle_info_service = None
         self.current_session: Optional[DiagnosticSession] = None
         
-        # Initialize OBD system
-        asyncio.create_task(self._initialize_obd_system())
+        # OBD system will be initialized by the server startup event
     
-    async def _initialize_obd_system(self):
+    async def initialize_obd_system(self):
         """Initialize the OBD system based on configuration."""
         try:
             # Check if mock mode is enabled
