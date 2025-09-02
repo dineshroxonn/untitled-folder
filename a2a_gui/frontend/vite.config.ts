@@ -11,11 +11,10 @@ export default defineConfig({
   },
   server: {
     proxy: {
-      '/agent-status': 'http://localhost:8000',
-      '/connection-info': 'http://localhost:8000',
-      '/connect-obd': 'http://localhost:8000',
-      '/disconnect-obd': 'http://localhost:8000',
-      '/diagnose': 'http://localhost:8000',
+      '/api': {
+        target: 'http://localhost:8000',
+        changeOrigin: true,
+      },
     },
   },
 })

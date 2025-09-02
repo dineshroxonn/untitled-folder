@@ -44,7 +44,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(api_router)
+app.include_router(api_router, prefix="/api")
 
 @app.on_event("shutdown")
 async def shutdown_event():
@@ -54,11 +54,12 @@ async def shutdown_event():
 static_dir = Path(__file__).parent / "frontend" / "dist"
 if static_dir.exists():
     app.mount("/assets", StaticFiles(directory=static_dir / "assets"), name="assets")
-    
+
     @app.get("/{full_path:path}")
     async def serve_frontend(full_path: str, request: Request):
-        if full_path.startswith(("agent-status", "diagnose", "api/", "assets/", "connect-obd", "disconnect-obd", "connection-info")):
-            raise HTTPException(status_code=404, detail="Not found")
+        # Exclude API routes from being served by the frontend
+        if full_path.startswith("api/"):
+            raise HTTPException(status_code=404, detail="Not Found")
         
         index_file = static_dir / "index.html"
         return FileResponse(index_file)

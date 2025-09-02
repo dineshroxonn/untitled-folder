@@ -1,18 +1,20 @@
 import type { StreamChunk } from '../types';
 
 export const api = {
-  checkAgentStatus: () => fetch('/agent-status').then(res => res.json()),
-  getConnectionInfo: () => fetch('/connection-info').then(res => res.json()),
-  connectObd: () => fetch('/connect-obd', { method: 'POST' }),
-  disconnectObd: () => fetch('/disconnect-obd', { method: 'POST' }),
+  checkAgentStatus: () => fetch('/api/agent-status').then(res => res.json()),
+  getConnectionInfo: () => fetch('/api/connection-info').then(res => res.json()),
+  connectObd: () => fetch('/api/connect-obd', { method: 'POST' }),
+  disconnectObd: () => fetch('/api/disconnect-obd', { method: 'POST' }),
   sendMessage: (message: string, onChunk: (chunk: StreamChunk) => void, onError: (err: Error) => void) => {
-    const eventSource = new EventSource(`/diagnose?message=${encodeURIComponent(message)}`);
+    const eventSource = new EventSource(`/api/diagnose?message=${encodeURIComponent(message)}`);
     eventSource.onmessage = event => {
-      try {
-        const data: StreamChunk = JSON.parse(event.data);
-        onChunk(data);
-      } catch (error) {
-        console.warn('Failed to parse SSE data:', event.data, error);
+      if (event.data.startsWith('{')) {
+        try {
+          const data: StreamChunk = JSON.parse(event.data);
+          onChunk(data);
+        } catch (error) {
+          console.warn('Failed to parse SSE JSON data:', event.data, error);
+        }
       }
     };
     eventSource.onerror = () => {

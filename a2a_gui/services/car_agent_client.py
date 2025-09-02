@@ -1,5 +1,8 @@
 import os
 import json
+import time
+import random
+import string
 from typing import AsyncGenerator, Optional, Dict, Any
 
 import httpx
@@ -63,16 +66,15 @@ class CarAgentClient:
 
     async def stream_diagnosis(self, message: str) -> AsyncGenerator[str, None]:
         """Stream diagnostic response from the car agent."""
+        message_id = f"{int(time.time())}-{ ''.join(random.choices(string.ascii_lowercase + string.digits, k=6))}"
         payload = {
             "jsonrpc": "2.0",
-            "method": "execute",
+            "method": "message/stream",
             "params": {
                 "message": {
-                    "parts": [
-                        {
-                            "text": message
-                        }
-                    ]
+                    "messageId": message_id,
+                    "role": "user",
+                    "parts": [{"text": message}],
                 }
             },
             "id": "1"
@@ -80,12 +82,23 @@ class CarAgentClient:
         try:
             async with self.client.stream("POST", f"{self.base_url}/", json=payload, headers={"Content-Type": "application/json"}) as response:
                 if response.status_code != 200:
-                    error_text = await response.aread() # type: ignore
+                    error_text = await response.aread()
                     yield f"data: {json.dumps({'error': f'Agent error {response.status_code}: {error_text.decode()}'})}\n\n"
                     return
-                async for chunk in response.aiter_text():
-                    if chunk.strip():
-                        yield f"data: {chunk.strip()}\n\n"
+
+                async for line in response.aiter_lines():
+                    if line.startswith("data:"):
+                        try:
+                            data_json = json.loads(line[5:])
+                            if "result" in data_json and "kind" in data_json["result"]:
+                                result = data_json["result"]
+                                if result["kind"] == "status-update" and "status" in result and "message" in result["status"]:
+                                    if result["status"]["message"] and result["status"]["message"]["parts"]:
+                                        for part in result["status"]["message"]["parts"]:
+                                            if part.get("kind") == "text" and part.get("text"):
+                                                yield f"data: {json.dumps({'content': part['text']})}\n\n"
+                        except json.JSONDecodeError:
+                            continue
                 
                 yield f"data: {json.dumps({'status': 'complete'})}\n\n"
         except httpx.RequestError as e:
