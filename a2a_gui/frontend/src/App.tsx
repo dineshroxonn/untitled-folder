@@ -2,8 +2,10 @@ import React, { useEffect } from 'react';
 import { useChat } from './hooks/useChat';
 import { useStatus } from './hooks/useStatus';
 import { Header } from './components/Header';
-import { ControlPanel } from './components/ControlPanel';
+import { DiagnosticPanel } from './components/DiagnosticPanel';
 import { ChatInterface } from './components/ChatInterface';
+import { StatusBar } from './components/StatusBar';
+import './App.css';
 
 function App() {
   const {
@@ -33,11 +35,16 @@ function App() {
   };
 
   return (
-    <div className="dark min-h-screen bg-background font-sans text-foreground">
+    <div className="dark min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 font-sans text-foreground">
       <Header agentStatus={agentStatus} />
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          <ControlPanel
+      <StatusBar 
+        agentStatus={agentStatus}
+        connectionStatus={connectionStatus}
+        connectionInfo={connectionInfo}
+      />
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="grid grid-cols-1 xl:grid-cols-4 gap-8 h-[calc(100vh-200px)]">
+          <DiagnosticPanel
             status={connectionStatus}
             info={connectionInfo}
             onConnect={handleConnect}
