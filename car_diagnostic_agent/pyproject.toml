@@ -1,0 +1,13 @@
+
+[project]
+name = "car-diagnostic-agent"
+version = "0.1.0"
+description = "A2A Car Diagnostic Agent"
+dependencies = [
+    "a2a-sdk[http-server]",
+    "langchain-google-genai",
+    "python-dotenv",
+    "uvicorn",
+]
+
+
