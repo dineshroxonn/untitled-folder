@@ -13,23 +13,36 @@ from .agent_executor import get_agent_executor
 
 def create_agent_card():
     return AgentCard(
-        name="Car Diagnostic Agent",
-        description="An AI agent that acts as a virtual car mechanic. Provide the car model, year, and Diagnostic Trouble Codes (DTCs) to get a diagnosis and repair suggestions.",
-        version="0.1.0",
+        name="Car Diagnostic Agent with OBD-II Integration",
+        description="An AI agent that acts as a virtual car mechanic with real-time OBD-II diagnostic capabilities. Connect to your vehicle's OBD port for live diagnostics, or provide DTCs manually for analysis.",
+        version="0.2.0",
         url="http://localhost:10011/",
         skills=[
             AgentSkill(
                 id="diagnose_car_problems",
                 name="Diagnose Car Problems",
-                description="Analyzes Diagnostic Trouble Codes (DTCs) for a specific car model and provides a diagnosis and repair plan.",
+                description="Analyzes Diagnostic Trouble Codes (DTCs) for a specific car model and provides a diagnosis and repair plan. Supports both manual DTC input and real-time OBD-II scanning.",
                 examples=[
                     "My 2015 Ford Focus is showing codes P0171 and P0174. What's going on?",
                     "I have a 2019 Toyota Camry with a check engine light and code C1201.",
+                    "Connect to OBD and scan my vehicle for trouble codes.",
+                    "Show me live engine parameters from my car's OBD port.",
                 ],
-                tags=["diagnostics", "automotive", "mechanic", "DTC"],
+                tags=["diagnostics", "automotive", "mechanic", "DTC", "OBD-II", "real-time"],
+            ),
+            AgentSkill(
+                id="obd_live_diagnostics",
+                name="Real-time OBD Diagnostics",
+                description="Connects to vehicle OBD-II port to read live diagnostic data, trouble codes, and engine parameters in real-time.",
+                examples=[
+                    "Connect OBD and scan for trouble codes",
+                    "Show me current engine RPM and coolant temperature",
+                    "Monitor my engine parameters while driving",
+                ],
+                tags=["OBD-II", "real-time", "live-data", "monitoring"],
             )
         ],
-        capabilities={"streaming": True},
+        capabilities={"streaming": True, "obd_integration": True, "real_time_diagnostics": True},
         default_input_modes=["text/plain"],
         default_output_modes=["text/plain"],
     )

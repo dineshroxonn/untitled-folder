@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react'
-import { Car, MessageCircle, AlertCircle, CheckCircle, Loader2, Send } from 'lucide-react'
+import { Car, MessageCircle, AlertCircle, Loader2, Send } from 'lucide-react'
+import { clsx } from 'clsx'
 import './App.css'
 
 interface Message {
@@ -215,7 +216,7 @@ function App() {
           <div className="lg:col-span-2">
             <div className="card flex flex-col h-[600px]">
               {/* Messages */}
-              <div className="flex-1 p-4 overflow-y-auto space-y-4">
+              <div className="flex-1 p-4 overflow-y-auto space-y-4 messages-container">
                 {messages.length === 0 ? (
                   <div className="text-center py-12">
                     <MessageCircle className="w-12 h-12 text-gray-400 mx-auto mb-4" />
@@ -225,19 +226,23 @@ function App() {
                   messages.map((message) => (
                     <div
                       key={message.id}
-                      className={`flex ${message.type === 'user' ? 'justify-end' : 'justify-start'}`}
+                      className={clsx(
+                        "flex message-fade-in",
+                        message.type === 'user' ? 'justify-end' : 'justify-start'
+                      )}
                     >
                       <div
-                        className={`max-w-[80%] rounded-lg px-4 py-2 ${
-                          message.type === 'user'
-                            ? 'bg-automotive-600 text-white'
-                            : message.type === 'error'
-                            ? 'bg-red-100 text-red-800 border border-red-200'
-                            : 'bg-gray-100 text-gray-900'
-                        }`}
+                        className={clsx(
+                          "max-w-[80%] rounded-lg px-4 py-2",
+                          {
+                            'bg-automotive-600 text-white': message.type === 'user',
+                            'bg-red-100 text-red-800 border border-red-200': message.type === 'error',
+                            'bg-gray-100 text-gray-900': message.type === 'agent'
+                          }
+                        )}
                       >
                         <p className="whitespace-pre-wrap">{message.content}</p>
-                        <p className={`text-xs mt-1 opacity-70`}>
+                        <p className={clsx("text-xs mt-1 opacity-70")}>
                           {formatTime(message.timestamp)}
                         </p>
                       </div>
@@ -246,7 +251,7 @@ function App() {
                 )}
                 {isLoading && (
                   <div className="flex justify-start">
-                    <div className="bg-gray-100 rounded-lg px-4 py-2 flex items-center space-x-2">
+                    <div className="bg-gray-100 rounded-lg px-4 py-2 flex items-center space-x-2 typing-indicator">
                       <Loader2 className="w-4 h-4 animate-spin" />
                       <span className="text-sm text-gray-600">AI is diagnosing...</span>
                     </div>

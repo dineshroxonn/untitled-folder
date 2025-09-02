@@ -1,0 +1,13 @@
+Metadata-Version: 2.4
+Name: car-diagnostic-agent
+Version: 0.1.0
+Summary: A2A Car Diagnostic Agent
+Requires-Dist: a2a-sdk[http-server]
+Requires-Dist: langchain-google-genai
+Requires-Dist: python-dotenv
+Requires-Dist: uvicorn
+Requires-Dist: pyserial>=3.5
+Requires-Dist: obd>=0.7.1
+Requires-Dist: asyncio-mqtt>=0.13.0
+Requires-Dist: pytest>=7.0.0
+Requires-Dist: pytest-asyncio>=0.21.0
