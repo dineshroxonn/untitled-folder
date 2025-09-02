@@ -95,7 +95,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
           </CardTitle>
         </CardHeader>
 
-        <CardContent className="flex-1 flex flex-col p-0 overflow-hidden">
+        <CardContent className="flex-1 flex flex-col p-0 overflow-hidden bg-slate-900">
           {/* Messages Area */}
           <div className="flex-1 overflow-y-auto custom-scrollbar p-6 space-y-6">
             {messages.length === 0 ? (
