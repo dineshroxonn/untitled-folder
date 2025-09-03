@@ -248,15 +248,33 @@ class LiveDataService:
             if response.success:
                 pid_info = COMMON_PIDS.get(pid, {"name": f"PID_{pid}", "unit": ""})
                 
+                # Handle different value types
+                value = response.data["value"]
+                if value is None:
+                    value = 0.0
+                elif isinstance(value, (int, float)):
+                    value = float(value)
+                else:
+                    # Try to convert string values to float
+                    try:
+                        value = float(str(value))
+                    except (ValueError, TypeError):
+                        logger.warning(f"Could not convert value '{value}' to float for PID {pid}")
+                        value = 0.0
+                
                 return LiveDataReading(
                     pid=pid,
                     name=pid_info["name"],
-                    value=float(response.data["value"]) if response.data["value"] is not None else 0.0,
+                    value=value,
                     unit=response.data.get("unit", pid_info["unit"]),
                     timestamp=datetime.now()
                 )
             else:
-                logger.error(f"Failed to read parameter {pid}: {response.error_message}")
+                # Log as warning instead of error for unsupported parameters
+                if "not supported" in response.error_message.lower():
+                    logger.info(f"Parameter {pid} not supported by this vehicle: {response.error_message}")
+                else:
+                    logger.warning(f"Failed to read parameter {pid}: {response.error_message}")
                 return None
                 
         except Exception as e:
@@ -497,16 +515,31 @@ class VehicleInfoService:
         
         return ecu_info
     
-    def _parse_vin(self, vin: str) -> tuple[Optional[str], Optional[str], Optional[int]]:
+    def _parse_vin(self, vin) -> tuple[Optional[str], Optional[str], Optional[int]]:
         """
         Parse VIN to extract make, model, and year.
         
         Args:
-            vin: Vehicle Identification Number
+            vin: Vehicle Identification Number (can be string or bytes)
             
         Returns:
             Tuple of (make, model, year)
         """
+        # Handle bytearray/bytes input
+        if isinstance(vin, (bytes, bytearray)):
+            try:
+                vin = vin.decode('utf-8').strip()
+            except Exception as e:
+                logger.error(f"Error decoding VIN bytes: {e}")
+                return None, None, None
+        
+        # Clean the VIN string
+        if isinstance(vin, str):
+            vin = vin.strip()
+        else:
+            logger.error(f"VIN is not a string or bytes: {type(vin)}")
+            return None, None, None
+            
         if not vin or len(vin) != 17:
             return None, None, None
         
@@ -531,17 +564,35 @@ class VehicleInfoService:
     def _decode_year_from_vin(self, year_code: str) -> Optional[int]:
         """Decode model year from VIN year code."""
         # Simplified VIN year decoding
+        # Note: VIN year codes repeat every 30 years, so we need to make an educated guess
+        # based on the current decade
+        import datetime
+        current_year = datetime.datetime.now().year
+        current_decade = (current_year // 10) * 10
+        
         year_map = {
             'A': 1980, 'B': 1981, 'C': 1982, 'D': 1983, 'E': 1984, 'F': 1985,
             'G': 1986, 'H': 1987, 'J': 1988, 'K': 1989, 'L': 1990, 'M': 1991,
             'N': 1992, 'P': 1993, 'R': 1994, 'S': 1995, 'T': 1996, 'V': 1997,
             'W': 1998, 'X': 1999, 'Y': 2000, '1': 2001, '2': 2002, '3': 2003,
-            '4': 2004, '5': 2005, '6': 2006, '7': 2007, '8': 2008, '9': 2009,
-            'A': 2010, 'B': 2011, 'C': 2012, 'D': 2013, 'E': 2014, 'F': 2015,
-            'G': 2016, 'H': 2017, 'J': 2018, 'K': 2019, 'L': 2020, 'M': 2021,
-            'N': 2022, 'P': 2023, 'R': 2024, 'S': 2025
+            '4': 2004, '5': 2005, '6': 2006, '7': 2007, '8': 2008, '9': 2009
         }
-        return year_map.get(year_code.upper())
+        
+        base_year = year_map.get(year_code.upper())
+        if base_year is None:
+            return None
+            
+        # Adjust for current era - if the base year is too far in the past,
+        # assume it's from the current cycle
+        if current_year - base_year > 30:
+            # Add 30 years to get closer to current era
+            adjusted_year = base_year + 30
+            # If still too far in the past, add another 30 years
+            if current_year - adjusted_year > 30:
+                adjusted_year += 30
+            return adjusted_year
+            
+        return base_year
     
     def _decode_make_from_wmi(self, wmi: str) -> Optional[str]:
         """Decode manufacturer from World Manufacturer Identifier."""
