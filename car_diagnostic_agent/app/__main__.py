@@ -3,20 +3,16 @@ import os
 import logging
 import uvicorn
 from starlette.applications import Starlette
-from starlette.responses import JSONResponse, Response
+from starlette.responses import JSONResponse
 from starlette.routing import Route, Mount
-from starlette.middleware import Middleware
-from starlette.middleware.cors import CORSMiddleware
 from a2a.server.apps import A2AStarletteApplication
 from a2a.server.request_handlers import DefaultRequestHandler
 from a2a.server.tasks import InMemoryTaskStore
 from a2a.types import AgentCard, AgentSkill
 from dotenv import load_dotenv
-from pathlib import Path
 
 from .agent import CarDiagnosticAgent
 from .agent_executor import CarDiagnosticAgentExecutor
-# Import azure_voice_service after loading environment variables
 
 # --- Logging Setup ---
 logging.basicConfig(level=logging.INFO)
@@ -41,21 +37,15 @@ def create_agent_card():
                 tags=["diagnostics", "automotive", "mechanic", "DTC", "OBD-II"],
             ),
         ],
-        capabilities={"streaming": True, "obd_integration": True, "voice_output": True},
+        capabilities={"streaming": True, "obd_integration": True},
         default_input_modes=["text/plain"],
         default_output_modes=["text/plain"],
     )
 
 # --- Environment and Agent Initialization ---
-# Load environment variables from .env file
-env_path = Path(__file__).parent.parent / '.env'
-load_dotenv(dotenv_path=env_path)
-
+load_dotenv()
 if not os.getenv("GOOGLE_API_KEY"):
     raise ValueError("GOOGLE_API_KEY environment variable not set.")
-
-# Import azure_voice_service after loading environment variables
-from .azure_voice_service import azure_voice_service
 
 # Create a single agent instance to be shared
 agent = CarDiagnosticAgent()
@@ -92,43 +82,6 @@ async def get_connection_info(request):
     info = await agent.obd_manager.get_connection_info()
     return JSONResponse(info)
 
-async def text_to_speech(request):
-    """Endpoint to convert text to speech"""
-    if not azure_voice_service.is_available():
-        return JSONResponse({
-            "success": False, 
-            "error": "Azure voice service not configured. Set AZURE_SPEECH_KEY environment variable."
-        }, status_code=503)
-    
-    try:
-        body = await request.json()
-        text = body.get("text", "")
-        if not text:
-            return JSONResponse({"success": False, "error": "No text provided"}, status_code=400)
-        
-        audio_data = await azure_voice_service.text_to_speech(text)
-        if audio_data:
-            return Response(
-                content=audio_data,
-                media_type="audio/wav",
-                headers={"Content-Disposition": "inline; filename=speech.wav"}
-            )
-        else:
-            return JSONResponse({"success": False, "error": "Failed to synthesize speech"}, status_code=500)
-    except Exception as e:
-        return JSONResponse({"success": False, "error": str(e)}, status_code=500)
-
-async def voice_status(request):
-    """Endpoint to check voice service status"""
-    print(f"Voice service available: {azure_voice_service.is_available()}")
-    print(f"Voice service configured: {azure_voice_service.subscription_key is not None}")
-    print(f"Subscription key: {azure_voice_service.subscription_key}")
-    print(f"Speech config: {azure_voice_service.speech_config}")
-    return JSONResponse({
-        "available": azure_voice_service.is_available(),
-        "configured": azure_voice_service.subscription_key is not None
-    })
-
 async def health_check(request):
     """Health check endpoint."""
     return JSONResponse({"status": "ok"})
@@ -143,23 +96,12 @@ async def on_startup():
 
 # Combine the A2A app with the new control endpoints
 app = Starlette(
-    middleware=[
-        Middleware(
-            CORSMiddleware,
-            allow_origins=["http://localhost:5173", "http://localhost:3000", "http://localhost:8000"],
-            allow_credentials=True,
-            allow_methods=["*"],
-            allow_headers=["*"],
-        )
-    ],
     on_startup=[on_startup],
     routes=[
         Route("/health", health_check, methods=["GET"]),
         Route("/connect_obd", connect_obd, methods=["POST"]),
         Route("/disconnect_obd", disconnect_obd, methods=["POST"]),
         Route("/connection_info", get_connection_info, methods=["GET"]),
-        Route("/text-to-speech", text_to_speech, methods=["POST"]),
-        Route("/voice-status", voice_status, methods=["GET"]),
         Mount("/", app=a2a_app)
     ]
 )

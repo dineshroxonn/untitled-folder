@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState } from 'react';
 import { 
   MessageCircle, 
   Loader2, 
@@ -6,12 +6,10 @@ import {
   AlertCircle, 
   Sparkles,
   Mic,
-  MicOff,
   Paperclip,
   MoreHorizontal,
   Maximize2,
-  Minimize2,
-  Volume2
+  Minimize2
 } from 'lucide-react';
 import type { Message } from '../types';
 import { ChatMessage } from './ChatMessage';
@@ -19,7 +17,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { clsx } from 'clsx';
-import { useVoice } from '../hooks/useVoice';
 
 interface ChatInterfaceProps {
   messages: Message[];
@@ -42,44 +39,6 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
 }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const [inputFocused, setInputFocused] = useState(false);
-  const { isSpeaking, isListening, speakText, startListening, stopListening, voiceAvailable, checkVoiceStatus } = useVoice();
-  const lastSpokenMessageIdRef = useRef<string | null>(null);
-
-  // Auto-speak new AI messages
-  useEffect(() => {
-    if (messages.length > 0 && voiceAvailable) {
-      const lastMessage = messages[messages.length - 1];
-      console.log('Checking message for auto-speaking:', lastMessage);
-      console.log('Last spoken message ID:', lastSpokenMessageIdRef.current);
-      console.log('Current message ID:', lastMessage.id);
-      
-      // Only speak if this is a new agent message that hasn't been spoken yet
-      if (lastMessage.type === 'agent' && 
-          typeof lastMessage.content === 'string' && 
-          lastMessage.id !== lastSpokenMessageIdRef.current) {
-        // Auto-speak short messages for better UX
-        const content = lastMessage.content as string;
-        console.log('Attempting to auto-speak message:', content);
-        if (content.length < 300) { // Limit to shorter responses to avoid overwhelming
-          lastSpokenMessageIdRef.current = lastMessage.id;
-          speakText(content);
-        }
-      }
-    }
-  }, [messages, voiceAvailable, speakText]);
-
-  // Handle speech results
-  useEffect(() => {
-    const handleSpeechResult = (event: CustomEvent) => {
-      const transcript = event.detail as string;
-      setInput(transcript);
-    };
-
-    window.addEventListener('speechResult', handleSpeechResult as EventListener);
-    return () => {
-      window.removeEventListener('speechResult', handleSpeechResult as EventListener);
-    };
-  }, [setInput]);
 
   const quickActions = [
     { label: "Scan for codes", action: "Scan my vehicle for trouble codes" },
@@ -90,14 +49,6 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
 
   const handleQuickAction = (action: string) => {
     setInput(action);
-  };
-
-  const handleMicClick = () => {
-    if (isListening) {
-      stopListening();
-    } else {
-      startListening();
-    }
   };
 
   return (
@@ -269,28 +220,14 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
                     <Paperclip className="w-4 h-4" />
                   </Button>
                   
-                  {voiceAvailable && (
-                    <>
-                      <Button
-                        variant={isListening ? "secondary" : "ghost"}
-                        size="sm"
-                        disabled={!agentAvailable}
-                        onClick={handleMicClick}
-                        className="text-slate-400 hover:text-slate-200 p-2"
-                      >
-                        {isListening ? <MicOff className="w-4 h-4 text-red-400" /> : <Mic className="w-4 h-4" />}
-                      </Button>
-                      <Button
-                        variant={isSpeaking ? "secondary" : "ghost"}
-                        size="sm"
-                        disabled={!agentAvailable || !input.trim()}
-                        onClick={() => speakText(input)}
-                        className="text-slate-400 hover:text-slate-200 p-2"
-                      >
-                        <Volume2 className={`w-4 h-4 ${isSpeaking ? 'text-blue-400' : ''}`} />
-                      </Button>
-                    </>
-                  )}
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    disabled={!agentAvailable}
+                    className="text-slate-400 hover:text-slate-200 p-2"
+                  >
+                    <Mic className="w-4 h-4" />
+                  </Button>
                   
                   <Button
                     onClick={onSendMessage}
