@@ -5,6 +5,7 @@ import { Header } from './components/Header';
 import { DiagnosticPanel } from './components/DiagnosticPanel';
 import { ChatInterface } from './components/ChatInterface';
 import { StatusBar } from './components/StatusBar';
+import { api } from './services/api';
 import './App.css';
 
 function App() {
@@ -34,6 +35,17 @@ function App() {
     handleSendMessage("Scan my vehicle for trouble codes and live data.");
   };
 
+  const handleSimulate = async (scenario: string) => {
+    try {
+      const response = await api.simulateCar(scenario);
+      // After successful simulation, trigger connect to use the simulated data
+      handleConnect();
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : String(e);
+      addMessage('error', `Failed to start simulation: ${message}`);
+    }
+  };
+
   return (
     <div className="dark min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 font-sans text-foreground">
       <Header agentStatus={agentStatus} />
@@ -50,7 +62,9 @@ function App() {
             onConnect={handleConnect}
             onDisconnect={handleDisconnect}
             onScan={handleScan}
+            onSimulate={handleSimulate}
             isLoading={isLoading}
+            addMessage={addMessage}
           />
           <ChatInterface
             messages={messages}

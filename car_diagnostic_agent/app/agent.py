@@ -11,7 +11,6 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 
 from .obd_interface import OBDInterfaceManager, MockOBDInterfaceManager
 from .obd_services import DTCReaderService, LiveDataService, VehicleInfoService
-from .obd_config import config_manager
 from .obd_models import DTCInfo, LiveDataReading, VehicleInfo, DiagnosticSession, DTCSeverity, DTCStatus
 
 
@@ -63,10 +62,18 @@ Maintain a helpful and knowledgeable tone throughout. If you detect critical iss
     async def initialize_obd_system(self):
         """Initialize the OBD system based on configuration."""
         try:
+            # Get config_manager from main module
+            import __main__
+            config_manager = __main__.config_manager
+            
             # Check if mock mode is enabled
-            if config_manager.is_mock_mode_enabled():
+            mock_mode = config_manager.is_mock_mode_enabled()
+            logger.info(f"Initializing OBD system, mock mode: {mock_mode}")
+            if mock_mode:
                 logger.info("Initializing OBD system in mock mode")
                 self.obd_manager = MockOBDInterfaceManager(config_manager.get_default_config())
+                logger.info(f"OBD manager type: {type(self.obd_manager)}")
+                logger.info(f"OBD manager has load_simulation_data: {hasattr(self.obd_manager, 'load_simulation_data')}")
             else:
                 logger.info("Initializing OBD system with real interface")
                 self.obd_manager = OBDInterfaceManager(config_manager.get_default_config())
@@ -82,6 +89,7 @@ Maintain a helpful and knowledgeable tone throughout. If you detect critical iss
                 
         except Exception as e:
             logger.error(f"Failed to initialize OBD system: {e}")
+            raise
     
     async def _attempt_auto_connect(self):
         """Attempt to auto-connect to OBD adapter."""

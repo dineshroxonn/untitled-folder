@@ -11,6 +11,13 @@ export const api = {
     body: JSON.stringify({ config })
   }),
   disconnectObd: () => fetch('/api/disconnect-obd', { method: 'POST' }),
+  simulateCar: (scenario: string) => fetch('/api/simulate-car', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ scenario })
+  }),
   sendMessage: (message: string, onChunk: (chunk: StreamChunk) => void, onError: (err: Error) => void) => {
     const eventSource = new EventSource(`/api/diagnose?message=${encodeURIComponent(message)}`);
     eventSource.onmessage = event => {

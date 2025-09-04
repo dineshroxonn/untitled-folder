@@ -17,6 +17,7 @@ import { clsx } from 'clsx';
 import type { ConnectionStatus, ConnectionInfo } from '../types';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { SimulationControl } from './SimulationControl';
 
 interface DiagnosticPanelProps {
   status: ConnectionStatus;
@@ -24,7 +25,9 @@ interface DiagnosticPanelProps {
   onConnect: () => void;
   onDisconnect: () => void;
   onScan: () => void;
+  onSimulate: (scenario: string) => void;
   isLoading: boolean;
+  addMessage: (type: 'info' | 'error', content: string) => void;
 }
 
 export const DiagnosticPanel: React.FC<DiagnosticPanelProps> = ({ 
@@ -33,7 +36,9 @@ export const DiagnosticPanel: React.FC<DiagnosticPanelProps> = ({
   onConnect, 
   onDisconnect, 
   onScan, 
-  isLoading 
+  onSimulate,
+  isLoading,
+  addMessage
 }) => {
   const [showAdvanced, setShowAdvanced] = useState(false);
 
@@ -246,6 +251,15 @@ export const DiagnosticPanel: React.FC<DiagnosticPanelProps> = ({
           </div>
         </CardContent>
       </Card>
+
+      {/* Simulation Control - Only show in development mode */}
+      {process.env.NODE_ENV === 'development' && (
+        <SimulationControl 
+          onSimulate={onSimulate}
+          isLoading={isLoading}
+          addMessage={addMessage}
+        />
+      )}
 
       {/* Instructions Card */}
       <Card className="glass-effect border-slate-700/50">

@@ -44,6 +44,11 @@ def create_agent_card():
 
 # --- Environment and Agent Initialization ---
 load_dotenv()
+
+# Initialize config manager after loading environment variables
+from .obd_config import OBDConfigManager
+config_manager = OBDConfigManager()
+
 if not os.getenv("GOOGLE_API_KEY"):
     raise ValueError("GOOGLE_API_KEY environment variable not set.")
 
@@ -82,6 +87,23 @@ async def get_connection_info(request):
     info = await agent.obd_manager.get_connection_info()
     return JSONResponse(info)
 
+async def load_simulation(request):
+    """Endpoint to load simulation data into mock OBD."""
+    try:
+        body = await request.json()
+        logger.info(f"Loading simulation data, OBD manager type: {type(agent.obd_manager)}")
+        logger.info(f"OBD manager has load_simulation_data: {hasattr(agent.obd_manager, 'load_simulation_data')}")
+        if hasattr(agent.obd_manager, 'load_simulation_data'):
+            await agent.obd_manager.load_simulation_data(body)
+            return JSONResponse({"success": True, "message": "Simulation data loaded"})
+        else:
+            error_msg = f"OBD manager does not support simulation. Type: {type(agent.obd_manager)}"
+            logger.error(error_msg)
+            return JSONResponse({"success": False, "error": error_msg}, status_code=400)
+    except Exception as e:
+        logger.error(f"Error loading simulation data: {e}")
+        return JSONResponse({"success": False, "error": str(e)}, status_code=500)
+
 async def health_check(request):
     """Health check endpoint."""
     return JSONResponse({"status": "ok"})
@@ -102,6 +124,7 @@ app = Starlette(
         Route("/connect_obd", connect_obd, methods=["POST"]),
         Route("/disconnect_obd", disconnect_obd, methods=["POST"]),
         Route("/connection_info", get_connection_info, methods=["GET"]),
+        Route("/load_simulation", load_simulation, methods=["POST"]),
         Mount("/", app=a2a_app)
     ]
 )

@@ -37,16 +37,8 @@ class OBDConfigManager:
         self._config_data = self._load_config()
     
     def _load_config(self) -> Dict[str, Any]:
-        """Load configuration from file."""
-        if self.config_file.exists():
-            try:
-                with open(self.config_file, 'r') as f:
-                    return json.load(f)
-            except Exception as e:
-                print(f"Error loading config: {e}")
-        
-        # Default configuration
-        return {
+        """Load configuration from file and environment variables."""
+        config = {
             "default_profile": "auto",
             "profiles": {
                 "auto": {
@@ -62,6 +54,30 @@ class OBDConfigManager:
             "enable_mock_mode": False,
             "auto_connect_on_start": False
         }
+        
+        # Load from config file if it exists
+        if self.config_file.exists():
+            try:
+                with open(self.config_file, 'r') as f:
+                    file_config = json.load(f)
+                    # Merge file config with defaults
+                    config.update(file_config)
+            except Exception as e:
+                print(f"Error loading config file: {e}")
+        
+        # Override with environment variables if set
+        import os
+        if os.getenv("enable_mock_mode", "").lower() in ("true", "1", "yes"):
+            config["enable_mock_mode"] = True
+        elif os.getenv("enable_mock_mode", "").lower() in ("false", "0", "no"):
+            config["enable_mock_mode"] = False
+            
+        if os.getenv("auto_connect_on_start", "").lower() in ("true", "1", "yes"):
+            config["auto_connect_on_start"] = True
+        elif os.getenv("auto_connect_on_start", "").lower() in ("false", "0", "no"):
+            config["auto_connect_on_start"] = False
+            
+        return config
     
     def _save_config(self):
         """Save configuration to file."""
@@ -415,4 +431,5 @@ class OBDConfigManager:
 
 
 # Global config manager instance
-config_manager = OBDConfigManager()
+# This will be initialized in __main__.py after loading environment variables
+config_manager = None

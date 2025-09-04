@@ -51,7 +51,28 @@ class OBDInterfaceManager:
         Args:
             config: Optional OBD connection configuration
         """
-        self.config = config or OBDConnectionConfig(port="auto")
+        # If config is a dictionary, convert it to OBDConnectionConfig
+        if isinstance(config, dict):
+            from .obd_models import OBDConnectionConfig, OBDProtocol
+            # Convert protocol string to enum if needed
+            protocol = config.get("protocol", "auto")
+            if isinstance(protocol, str):
+                try:
+                    protocol = OBDProtocol(protocol)
+                except ValueError:
+                    protocol = OBDProtocol.AUTO
+            
+            self.config = OBDConnectionConfig(
+                port=config.get("port", "auto"),
+                baudrate=config.get("baudrate", 38400),
+                timeout=config.get("timeout", 30.0),
+                protocol=protocol,
+                auto_detect=config.get("auto_detect", True),
+                max_retries=config.get("max_retries", 3)
+            )
+        else:
+            self.config = config or OBDConnectionConfig(port="auto")
+            
         self._connection: Optional[obd.OBD] = None
         self._is_connected = False
         self._supported_commands: List[obd.OBDCommand] = []
@@ -358,6 +379,93 @@ class OBDInterfaceManager:
             }
         }
     
+    async def query(self, command: obd.OBDCommand) -> OBDResponse:
+        """Mock query that returns simulated data."""
+        if not self.is_connected:
+            return OBDResponse(
+                success=False,
+                data=None,
+                error_message="Not connected to mock OBD adapter"
+            )
+        
+        # Use simulation data if available
+        if self._simulation_data and "obd_data" in self._simulation_data:
+            obd_data = self._simulation_data["obd_data"]
+            
+            # Handle DTC commands
+            if hasattr(command, 'name') and "DTC" in command.name.upper():
+                dtcs = obd_data.get("dtcs", [])
+                # Convert to format expected by OBD library
+                dtc_values = [(dtc["code"], "") for dtc in dtcs]  # (code, description) tuples
+                return OBDResponse(
+                    success=True,
+                    data={"command": command.name, "value": dtc_values, "unit": None},
+                    timestamp=datetime.now()
+                )
+            
+            # Handle live data commands
+            elif hasattr(command, 'name') and command.name == "RPM":
+                # Try to get from simulation, fallback to mock
+                rpm_value = self._mock_live_data["RPM"]
+                if "live_data" in obd_data and "0C" in obd_data["live_data"]:
+                    rpm_value = obd_data["live_data"]["0C"]["value"]
+                return OBDResponse(
+                    success=True,
+                    data={"command": command.name, "value": rpm_value, "unit": "rpm"},
+                    timestamp=datetime.now()
+                )
+            
+            elif hasattr(command, 'name') and command.name == "COOLANT_TEMP":
+                # Try to get from simulation, fallback to mock
+                temp_value = self._mock_live_data["COOLANT_TEMP"]
+                if "live_data" in obd_data and "05" in obd_data["live_data"]:
+                    temp_value = obd_data["live_data"]["05"]["value"]
+                return OBDResponse(
+                    success=True,
+                    data={"command": command.name, "value": temp_value, "unit": "°C"},
+                    timestamp=datetime.now()
+                )
+            
+            elif hasattr(command, 'name') and command.name == "THROTTLE_POS":
+                # Try to get from simulation, fallback to mock
+                throttle_value = self._mock_live_data["THROTTLE_POS"]
+                if "live_data" in obd_data and "11" in obd_data["live_data"]:
+                    throttle_value = obd_data["live_data"]["11"]["value"]
+                return OBDResponse(
+                    success=True,
+                    data={"command": command.name, "value": throttle_value, "unit": "%"},
+                    timestamp=datetime.now()
+                )
+        
+        # Fallback to original mock behavior
+        command_name = command.name if hasattr(command, 'name') else str(command)
+        
+        if "DTC" in command_name.upper():
+            return OBDResponse(
+                success=True,
+                data={"command": command_name, "value": self._mock_dtcs, "unit": None},
+                timestamp=datetime.now()
+            )
+        elif "RPM" in command_name.upper():
+            return OBDResponse(
+                success=True,
+                data={"command": command_name, "value": self._mock_live_data["RPM"], "unit": "rpm"},
+                timestamp=datetime.now()
+            )
+        elif "SPEED" in command_name.upper():
+            return OBDResponse(
+                success=True,
+                data={"command": command_name, "value": self._mock_live_data["SPEED"], "unit": "km/h"},
+                timestamp=datetime.now()
+            )
+        else:
+            # Generic mock response
+            return OBDResponse(
+                success=True,
+                data={"command": command_name, "value": 42.0, "unit": "unit"},
+                timestamp=datetime.now()
+            )
+
     async def reconnect(self) -> OBDResponse:
         """
         Reconnect to the OBD adapter using current configuration.
@@ -389,6 +497,7 @@ class MockOBDInterfaceManager(OBDInterfaceManager):
             "THROTTLE_POS": 0.0,
             "FUEL_LEVEL": 75.0
         }
+        self._simulation_data = None
     
     async def connect(self, config: Optional[OBDConnectionConfig] = None) -> OBDResponse:
         """Mock connection that always succeeds."""
@@ -412,6 +521,30 @@ class MockOBDInterfaceManager(OBDInterfaceManager):
             timestamp=datetime.now()
         )
     
+    async def load_simulation_data(self, simulation_data: Dict[str, Any]):
+        """
+        Load simulation data into the mock OBD interface.
+        
+        Args:
+            simulation_data: Dictionary containing simulated OBD data
+        """
+        self._simulation_data = simulation_data
+        
+        # Update mock DTCs from simulation
+        if "obd_data" in simulation_data and "dtcs" in simulation_data["obd_data"]:
+            self._mock_dtcs = [dtc["code"] for dtc in simulation_data["obd_data"]["dtcs"]]
+        
+        # Update mock live data from simulation
+        if "obd_data" in simulation_data and "live_data" in simulation_data["obd_data"]:
+            live_data = simulation_data["obd_data"]["live_data"]
+            # Map OBD PIDs to mock data
+            if "0C" in live_data:  # RPM
+                self._mock_live_data["RPM"] = live_data["0C"]["value"]
+            if "05" in live_data:  # Coolant Temp
+                self._mock_live_data["COOLANT_TEMP"] = live_data["05"]["value"]
+            if "11" in live_data:  # Throttle Position
+                self._mock_live_data["THROTTLE_POS"] = live_data["11"]["value"]
+    
     async def get_connection_info(self) -> Dict[str, Any]:
         """Override to provide mock connection info."""
         if not self.is_connected:
@@ -422,9 +555,12 @@ class MockOBDInterfaceManager(OBDInterfaceManager):
                 "supported_commands": 0
             }
         
+        # If we have simulation data, indicate it's simulated
+        port_info = "simulated_car" if self._simulation_data else "mock_port"
+        
         return {
             "connected": True,
-            "port": "mock_port",
+            "port": port_info,
             "protocol": "mock_protocol", 
             "supported_commands": 25,
             "config": {
@@ -434,40 +570,26 @@ class MockOBDInterfaceManager(OBDInterfaceManager):
             }
         }
     
-    async def query(self, command: obd.OBDCommand) -> OBDResponse:
-        """Mock query that returns simulated data."""
-        if not self.is_connected:
-            return OBDResponse(
-                success=False,
-                data=None,
-                error_message="Not connected to mock OBD adapter"
-            )
+    async def load_simulation_data(self, simulation_data: Dict[str, Any]):
+        """
+        Load simulation data into the mock OBD interface.
         
-        # Simulate different responses based on command
-        command_name = command.name if hasattr(command, 'name') else str(command)
+        Args:
+            simulation_data: Dictionary containing simulated OBD data
+        """
+        self._simulation_data = simulation_data
         
-        if "DTC" in command_name.upper():
-            return OBDResponse(
-                success=True,
-                data={"command": command_name, "value": self._mock_dtcs, "unit": None},
-                timestamp=datetime.now()
-            )
-        elif "RPM" in command_name.upper():
-            return OBDResponse(
-                success=True,
-                data={"command": command_name, "value": self._mock_live_data["RPM"], "unit": "rpm"},
-                timestamp=datetime.now()
-            )
-        elif "SPEED" in command_name.upper():
-            return OBDResponse(
-                success=True,
-                data={"command": command_name, "value": self._mock_live_data["SPEED"], "unit": "km/h"},
-                timestamp=datetime.now()
-            )
-        else:
-            # Generic mock response
-            return OBDResponse(
-                success=True,
-                data={"command": command_name, "value": 42.0, "unit": "unit"},
-                timestamp=datetime.now()
-            )
+        # Update mock DTCs from simulation
+        if "obd_data" in simulation_data and "dtcs" in simulation_data["obd_data"]:
+            self._mock_dtcs = [dtc["code"] for dtc in simulation_data["obd_data"]["dtcs"]]
+        
+        # Update mock live data from simulation
+        if "obd_data" in simulation_data and "live_data" in simulation_data["obd_data"]:
+            live_data = simulation_data["obd_data"]["live_data"]
+            # Map OBD PIDs to mock data
+            if "0C" in live_data:  # RPM
+                self._mock_live_data["RPM"] = live_data["0C"]["value"]
+            if "05" in live_data:  # Coolant Temp
+                self._mock_live_data["COOLANT_TEMP"] = live_data["05"]["value"]
+            if "11" in live_data:  # Throttle Position
+                self._mock_live_data["THROTTLE_POS"] = live_data["11"]["value"]

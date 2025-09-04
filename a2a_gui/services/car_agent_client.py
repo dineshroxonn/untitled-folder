@@ -18,6 +18,11 @@ class AgentStatus(BaseModel):
     status_code: Optional[int] = None
     error: Optional[str] = None
 
+class SimulationData(BaseModel):
+    scenario: str
+    obd_data: Dict[str, Any]
+    dtc_codes: list
+
 class CarAgentClient:
     """Client for communicating with the car diagnostic agent."""
     
@@ -25,6 +30,7 @@ class CarAgentClient:
         self.base_url = base_url.rstrip('/')
         self.timeout = timeout
         self.client = httpx.AsyncClient(timeout=timeout)
+        self.simulation_data: Optional[Dict[str, Any]] = None
     
     async def _agent_request(self, method: str, endpoint: str, **kwargs) -> httpx.Response:
         """Helper to make requests to the agent."""
@@ -106,8 +112,20 @@ class CarAgentClient:
         except Exception as e:
             yield f"data: {json.dumps({'error': f'Unexpected error: {str(e)}'})}\n\n"
 
+    async def load_simulation_data(self, simulation_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Load simulation data into the agent for mock mode."""
+        self.simulation_data = simulation_data
+        # Send to agent to update mock OBD data
+        response = await self._agent_request("POST", "/load_simulation", json=simulation_data)
+        return response.json()
+
     async def close(self):
         """Close the HTTP client."""
         await self.client.aclose()
 
+    def get_simulation_data(self) -> Optional[Dict[str, Any]]:
+        """Get currently loaded simulation data."""
+        return self.simulation_data
+
+# Global instance
 agent_client = CarAgentClient(CAR_AGENT_URL, CAR_AGENT_TIMEOUT)
