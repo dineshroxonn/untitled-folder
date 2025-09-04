@@ -13,10 +13,10 @@ const formatContent = (content: string) => {
   return content
     .replace(/(\*\*)(.*?)\1/g, '<strong class="text-slate-100 font-semibold">$2</strong>')
     .replace(/(\*)(.*?)\1/g, '<em class="text-slate-300 italic">$2</em>')
-    .replace(/(P[0-9A-F]{4})/g, '<code class="bg-slate-800/50 text-blue-400 px-2 py-0.5 rounded font-mono text-sm">$1</code>')
+    .replace(/(P[0-9A-F]{4})/g, '<code class="bg-slate-800/50 text-blue-400 px-1.5 py-0.5 sm:px-2 sm:py-0.5 rounded font-mono text-xs sm:text-sm">$1</code>')
     .replace(/(\d+°[CF])/g, '<span class="text-cyan-400 font-medium">$1</span>')
     .replace(/(\d+\s*rpm)/gi, '<span class="text-green-400 font-medium">$1</span>')
-    .replace(/(✅|🔴|🟡|🔵|⚠️|🔍|📋|📊|🚗|💬)/g, '<span class="text-lg">$1</span>');
+    .replace(/(✅|🔴|🟡|🔵|⚠️|🔍|📋|📊|🚗|💬)/g, '<span class="text-base sm:text-lg">$1</span>');
 };
 
 export const ChatMessage: React.FC<{ message: Message }> = ({ message }) => {
@@ -41,9 +41,9 @@ export const ChatMessage: React.FC<{ message: Message }> = ({ message }) => {
   if (message.type === 'info') {
     return (
       <div className="flex justify-center message-fade-in">
-        <div className="flex items-center space-x-2 px-4 py-2 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-400">
-          <Info className="w-4 h-4" />
-          <span className="text-sm font-medium">{message.content}</span>
+        <div className="flex items-center space-x-2 px-3 py-1.5 sm:px-4 sm:py-2 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-400">
+          <Info className="w-3 h-3 sm:w-4 sm:h-4" />
+          <span className="text-xs sm:text-sm font-medium">{message.content}</span>
         </div>
       </div>
     );
@@ -60,11 +60,11 @@ export const ChatMessage: React.FC<{ message: Message }> = ({ message }) => {
       })}>
         {/* Avatar */}
         <div className={clsx("flex-shrink-0 flex items-end", {
-          'ml-3': message.type === 'user',
-          'mr-3': message.type === 'agent' || message.type === 'error',
+          "ml-2 sm:ml-3": message.type === 'user',
+          "mr-2 sm:mr-3": message.type === 'agent' || message.type === 'error',
         })}>
           <div className={clsx(
-            "w-8 h-8 rounded-full flex items-center justify-center border-2 transition-all duration-300",
+            "w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center border-2 transition-all duration-300",
             message.type === 'user' 
               ? "bg-gradient-to-r from-blue-600 to-purple-600 border-blue-500/50 text-white" 
               : message.type === 'error'
@@ -82,36 +82,36 @@ export const ChatMessage: React.FC<{ message: Message }> = ({ message }) => {
           onMouseLeave={() => setShowActions(false)}
         >
           <Card className={clsx(
-            "relative transition-all duration-300 hover-lift",
+            "relative transition-all duration-300 hover-lift max-w-full sm:max-w-[85%]",
             message.type === 'user' 
               ? "bg-gradient-to-r from-blue-600/90 to-purple-600/90 border-blue-500/30 text-white" 
               : message.type === 'error'
               ? "bg-gradient-to-r from-red-600/20 to-orange-600/20 border-red-500/30 text-red-200"
               : "glass-effect border-slate-700/50 text-slate-100"
           )}>
-            <div className="px-5 py-4">
+            <div className="px-3 sm:px-5 py-2 sm:py-4">
               {typeof message.content === 'string' ? (
                 <div
-                  className="whitespace-pre-wrap text-base leading-relaxed"
+                  className="whitespace-pre-wrap text-sm sm:text-base leading-relaxed"
                   dangerouslySetInnerHTML={{
                     __html: formatContent(message.content),
                   }}
                 />
               ) : (
-                <div className="whitespace-pre-wrap text-base leading-relaxed">
+                <div className="whitespace-pre-wrap text-sm sm:text-base leading-relaxed">
                   {message.content}
                 </div>
               )}
               
-              <div className="flex items-center justify-between mt-3 pt-3 border-t border-current/10">
-                <div className="text-xs opacity-70 flex items-center space-x-2">
+              <div className="flex items-center justify-between mt-2 sm:mt-3 pt-2 sm:pt-3 border-t border-current/10">
+                <div className="text-xs opacity-70 flex items-center space-x-1 sm:space-x-2">
                   <span>{formatTime(message.timestamp)}</span>
                   {message.type === 'agent' && (
                     <>
                       <span>•</span>
                       <span className="flex items-center space-x-1">
-                        <Bot className="w-3 h-3" />
-                        <span>AI Response</span>
+                        <Bot className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
+                        <span className="hidden xs:inline">AI Response</span>
                       </span>
                     </>
                   )}
@@ -126,9 +126,9 @@ export const ChatMessage: React.FC<{ message: Message }> = ({ message }) => {
                     variant="ghost"
                     size="sm"
                     onClick={copyToClipboard}
-                    className="h-6 w-6 p-0 hover:bg-white/10 text-current/70 hover:text-current"
+                    className="h-5 w-5 sm:h-6 sm:w-6 p-0 hover:bg-white/10 text-current/70 hover:text-current"
                   >
-                    <Copy className="w-3 h-3" />
+                    <Copy className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
                   </Button>
                   
                   {message.type === 'agent' && (
@@ -136,16 +136,16 @@ export const ChatMessage: React.FC<{ message: Message }> = ({ message }) => {
                       <Button
                         variant="ghost"
                         size="sm"
-                        className="h-6 w-6 p-0 hover:bg-white/10 text-current/70 hover:text-current"
+                        className="h-5 w-5 sm:h-6 sm:w-6 p-0 hover:bg-white/10 text-current/70 hover:text-current"
                       >
-                        <ThumbsUp className="w-3 h-3" />
+                        <ThumbsUp className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
                       </Button>
                       <Button
                         variant="ghost"
                         size="sm"
-                        className="h-6 w-6 p-0 hover:bg-white/10 text-current/70 hover:text-current"
+                        className="h-5 w-5 sm:h-6 sm:w-6 p-0 hover:bg-white/10 text-current/70 hover:text-current"
                       >
-                        <ThumbsDown className="w-3 h-3" />
+                        <ThumbsDown className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
                       </Button>
                     </>
                   )}

@@ -65,22 +65,22 @@ export const DiagnosticPanel: React.FC<DiagnosticPanelProps> = ({
   };
 
   return (
-    <div className="xl:col-span-1 space-y-6">
+    <div className="xl:col-span-1 space-y-4 sm:space-y-6">
       {/* Main Connection Card */}
       <Card className={clsx(
         "glass-effect hover-lift transition-all duration-500 border-slate-700/50",
         status === 'CONNECTED' && "connection-glow"
       )}>
-        <CardHeader className="pb-4">
+        <CardHeader className="pb-3 sm:pb-4">
           <CardTitle className="flex items-center justify-between">
-            <div className="flex items-center space-x-3">
+            <div className="flex items-center space-x-2 sm:space-x-3">
               {getStatusIcon()}
-              <span className="text-lg font-semibold text-slate-100">
+              <span className="text-base sm:text-lg font-semibold text-slate-100">
                 Vehicle Connection
               </span>
             </div>
             <div className={clsx(
-              "px-2 py-1 rounded-full text-xs font-medium border",
+              "px-2 py-1 rounded-full text-[0.65rem] sm:text-xs font-medium border",
               status === 'CONNECTED' ? "bg-green-500/10 text-green-400 border-green-500/20" :
               status === 'CONNECTING' ? "bg-yellow-500/10 text-yellow-400 border-yellow-500/20" :
               status === 'ERROR' ? "bg-red-500/10 text-red-400 border-red-500/20" :
@@ -90,10 +90,10 @@ export const DiagnosticPanel: React.FC<DiagnosticPanelProps> = ({
             </div>
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-6">
-          <div className="space-y-3">
+        <CardContent className="space-y-4 sm:space-y-6">
+          <div className="space-y-2 sm:space-y-3">
             <h3 className="text-sm font-medium text-slate-300">{getStatusText()}</h3>
-            <p className="text-sm text-slate-400 leading-relaxed">
+            <p className="text-xs sm:text-sm text-slate-400 leading-relaxed">
               {getStatusDescription()}
             </p>
           </div>
@@ -103,16 +103,16 @@ export const DiagnosticPanel: React.FC<DiagnosticPanelProps> = ({
             {status === 'DISCONNECTED' && (
               <Button 
                 onClick={onConnect} 
-                className="w-full h-12 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-medium transition-all duration-300 shadow-lg hover:shadow-xl"
+                className="w-full h-10 sm:h-12 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-medium transition-all duration-300 shadow-lg hover:shadow-xl"
               >
-                <Power className="w-5 h-5 mr-2" />
+                <Power className="w-4 h-4 sm:w-5 sm:h-5 mr-2" />
                 Connect to Vehicle
               </Button>
             )}
             
             {status === 'CONNECTING' && (
-              <Button className="w-full h-12" disabled>
-                <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+              <Button className="w-full h-10 sm:h-12" disabled>
+                <Loader2 className="w-4 h-4 sm:w-5 sm:h-5 mr-2 animate-spin" />
                 Establishing Connection...
               </Button>
             )}
@@ -123,18 +123,18 @@ export const DiagnosticPanel: React.FC<DiagnosticPanelProps> = ({
                   onClick={onScan}
                   disabled={isLoading}
                   className={clsx(
-                    "w-full h-12 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white font-medium transition-all duration-300 shadow-lg hover:shadow-xl",
+                    "w-full h-10 sm:h-12 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white font-medium transition-all duration-300 shadow-lg hover:shadow-xl",
                     isLoading && "scan-animation"
                   )}
                 >
-                  <Zap className="w-5 h-5 mr-2" />
+                  <Zap className="w-4 h-4 sm:w-5 sm:h-5 mr-2" />
                   {isLoading ? 'Scanning Vehicle...' : 'Run Full Diagnostic'}
                 </Button>
                 
                 <Button 
                   onClick={onDisconnect} 
                   variant="outline"
-                  className="w-full h-10 border-slate-600 text-slate-300 hover:bg-slate-800 hover:text-white transition-all duration-300"
+                  className="w-full h-8 sm:h-10 border-slate-600 text-slate-300 hover:bg-slate-800 hover:text-white transition-all duration-300"
                 >
                   Disconnect
                 </Button>
@@ -144,9 +144,9 @@ export const DiagnosticPanel: React.FC<DiagnosticPanelProps> = ({
             {status === 'ERROR' && (
               <Button 
                 onClick={onConnect} 
-                className="w-full h-12 bg-gradient-to-r from-orange-600 to-red-600 hover:from-orange-700 hover:to-red-700 text-white font-medium transition-all duration-300"
+                className="w-full h-10 sm:h-12 bg-gradient-to-r from-orange-600 to-red-600 hover:from-orange-700 hover:to-red-700 text-white font-medium transition-all duration-300"
               >
-                <Power className="w-5 h-5 mr-2" />
+                <Power className="w-4 h-4 sm:w-5 sm:h-5 mr-2" />
                 Retry Connection
               </Button>
             )}
@@ -155,16 +155,16 @@ export const DiagnosticPanel: React.FC<DiagnosticPanelProps> = ({
           {/* Connection Details */}
           {info?.connected && (
             <div className="space-y-4 pt-4 border-t border-slate-700/50">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-2 gap-3 sm:gap-4">
                 <div className="space-y-1">
                   <div className="text-xs font-medium text-slate-400 uppercase tracking-wide">Port</div>
-                  <div className="text-sm text-slate-200 font-mono bg-slate-800/50 px-2 py-1 rounded">
+                  <div className="text-xs sm:text-sm text-slate-200 font-mono bg-slate-800/50 px-2 py-1 rounded truncate">
                     {info.port || 'N/A'}
                   </div>
                 </div>
                 <div className="space-y-1">
                   <div className="text-xs font-medium text-slate-400 uppercase tracking-wide">Protocol</div>
-                  <div className="text-sm text-slate-200 font-mono bg-slate-800/50 px-2 py-1 rounded">
+                  <div className="text-xs sm:text-sm text-slate-200 font-mono bg-slate-800/50 px-2 py-1 rounded truncate">
                     {info.protocol || 'N/A'}
                   </div>
                 </div>
@@ -174,16 +174,16 @@ export const DiagnosticPanel: React.FC<DiagnosticPanelProps> = ({
                 variant="ghost"
                 size="sm"
                 onClick={() => setShowAdvanced(!showAdvanced)}
-                className="w-full text-slate-400 hover:text-slate-200 transition-colors duration-200"
+                className="w-full text-slate-400 hover:text-slate-200 transition-colors duration-200 p-2"
               >
                 <Settings className="w-4 h-4 mr-2" />
-                Advanced Settings
+                <span className="text-xs sm:text-sm">Advanced Settings</span>
                 {showAdvanced ? <ChevronUp className="w-4 h-4 ml-2" /> : <ChevronDown className="w-4 h-4 ml-2" />}
               </Button>
               
               {showAdvanced && (
                 <div className="space-y-3 pt-3 border-t border-slate-700/30">
-                  <div className="grid grid-cols-1 gap-3 text-xs">
+                  <div className="grid grid-cols-1 gap-2 sm:gap-3 text-xs">
                     <div className="flex justify-between">
                       <span className="text-slate-400">Baudrate:</span>
                       <span className="text-slate-200 font-mono">38400</span>
@@ -206,21 +206,21 @@ export const DiagnosticPanel: React.FC<DiagnosticPanelProps> = ({
 
       {/* Quick Actions Card */}
       <Card className="glass-effect hover-lift border-slate-700/50">
-        <CardHeader className="pb-4">
+        <CardHeader className="pb-3 sm:pb-4">
           <CardTitle className="flex items-center text-slate-100">
-            <Gauge className="w-5 h-5 mr-3 text-blue-400" />
-            Quick Actions
+            <Gauge className="w-4 h-4 sm:w-5 sm:h-5 mr-2 sm:mr-3 text-blue-400" />
+            <span className="text-base sm:text-lg">Quick Actions</span>
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-3">
-          <div className="grid grid-cols-1 gap-3">
+        <CardContent className="space-y-2 sm:space-y-3">
+          <div className="grid grid-cols-1 gap-2 sm:gap-3">
             <Button
               variant="outline"
               size="sm"
               disabled={status !== 'CONNECTED' || isLoading}
-              className="justify-start border-slate-600 text-slate-300 hover:bg-slate-800 hover:text-white transition-all duration-300"
+              className="justify-start border-slate-600 text-slate-300 hover:bg-slate-800 hover:text-white transition-all duration-300 h-8 sm:h-10 text-xs sm:text-sm"
             >
-              <Car className="w-4 h-4 mr-2" />
+              <Car className="w-3 h-3 sm:w-4 sm:h-4 mr-2" />
               Read Vehicle Info
             </Button>
             
@@ -228,9 +228,9 @@ export const DiagnosticPanel: React.FC<DiagnosticPanelProps> = ({
               variant="outline"
               size="sm"
               disabled={status !== 'CONNECTED' || isLoading}
-              className="justify-start border-slate-600 text-slate-300 hover:bg-slate-800 hover:text-white transition-all duration-300"
+              className="justify-start border-slate-600 text-slate-300 hover:bg-slate-800 hover:text-white transition-all duration-300 h-8 sm:h-10 text-xs sm:text-sm"
             >
-              <AlertCircle className="w-4 h-4 mr-2" />
+              <AlertCircle className="w-3 h-3 sm:w-4 sm:h-4 mr-2" />
               Check Engine Codes
             </Button>
             
@@ -238,9 +238,9 @@ export const DiagnosticPanel: React.FC<DiagnosticPanelProps> = ({
               variant="outline"
               size="sm"
               disabled={status !== 'CONNECTED' || isLoading}
-              className="justify-start border-slate-600 text-slate-300 hover:bg-slate-800 hover:text-white transition-all duration-300"
+              className="justify-start border-slate-600 text-slate-300 hover:bg-slate-800 hover:text-white transition-all duration-300 h-8 sm:h-10 text-xs sm:text-sm"
             >
-              <Gauge className="w-4 h-4 mr-2" />
+              <Gauge className="w-3 h-3 sm:w-4 sm:h-4 mr-2" />
               Live Engine Data
             </Button>
           </div>
@@ -249,48 +249,48 @@ export const DiagnosticPanel: React.FC<DiagnosticPanelProps> = ({
 
       {/* Instructions Card */}
       <Card className="glass-effect border-slate-700/50">
-        <CardHeader className="pb-4">
+        <CardHeader className="pb-3 sm:pb-4">
           <CardTitle className="flex items-center text-slate-100">
-            <Info className="w-5 h-5 mr-3 text-cyan-400" />
-            Getting Started
+            <Info className="w-4 h-4 sm:w-5 sm:h-5 mr-2 sm:mr-3 text-cyan-400" />
+            <span className="text-base sm:text-lg">Getting Started</span>
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="space-y-4 text-sm text-slate-300">
-            <div className="flex items-start space-x-3">
-              <div className="w-6 h-6 rounded-full bg-blue-500/20 flex items-center justify-center flex-shrink-0 mt-0.5">
-                <span className="text-xs font-bold text-blue-400">1</span>
+          <div className="space-y-3 sm:space-y-4 text-xs sm:text-sm text-slate-300">
+            <div className="flex items-start space-x-2 sm:space-x-3">
+              <div className="w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-blue-500/20 flex items-center justify-center flex-shrink-0 mt-0.5">
+                <span className="text-[0.6rem] sm:text-xs font-bold text-blue-400">1</span>
               </div>
               <div>
                 <p className="font-medium text-slate-200">Connect OBD-II Adapter</p>
-                <p className="text-slate-400 text-xs mt-1">Plug adapter into your vehicle's diagnostic port</p>
+                <p className="text-slate-400 text-[0.65rem] sm:text-xs mt-1">Plug adapter into your vehicle's diagnostic port</p>
               </div>
             </div>
             
-            <div className="flex items-start space-x-3">
-              <div className="w-6 h-6 rounded-full bg-purple-500/20 flex items-center justify-center flex-shrink-0 mt-0.5">
-                <span className="text-xs font-bold text-purple-400">2</span>
+            <div className="flex items-start space-x-2 sm:space-x-3">
+              <div className="w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-purple-500/20 flex items-center justify-center flex-shrink-0 mt-0.5">
+                <span className="text-[0.6rem] sm:text-xs font-bold text-purple-400">2</span>
               </div>
               <div>
                 <p className="font-medium text-slate-200">Turn On Ignition</p>
-                <p className="text-slate-400 text-xs mt-1">Engine doesn't need to be running</p>
+                <p className="text-slate-400 text-[0.65rem] sm:text-xs mt-1">Engine doesn't need to be running</p>
               </div>
             </div>
             
-            <div className="flex items-start space-x-3">
-              <div className="w-6 h-6 rounded-full bg-green-500/20 flex items-center justify-center flex-shrink-0 mt-0.5">
-                <span className="text-xs font-bold text-green-400">3</span>
+            <div className="flex items-start space-x-2 sm:space-x-3">
+              <div className="w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-green-500/20 flex items-center justify-center flex-shrink-0 mt-0.5">
+                <span className="text-[0.6rem] sm:text-xs font-bold text-green-400">3</span>
               </div>
               <div>
                 <p className="font-medium text-slate-200">Start Diagnostics</p>
-                <p className="text-slate-400 text-xs mt-1">Click connect and run full diagnostic scan</p>
+                <p className="text-slate-400 text-[0.65rem] sm:text-xs mt-1">Click connect and run full diagnostic scan</p>
               </div>
             </div>
           </div>
           
-          <div className="mt-6 pt-4 border-t border-slate-700/30">
-            <div className="flex items-center space-x-2 text-xs text-slate-400">
-              <Wrench className="w-4 h-4" />
+          <div className="mt-4 sm:mt-6 pt-3 sm:pt-4 border-t border-slate-700/30">
+            <div className="flex items-center space-x-2 text-[0.65rem] sm:text-xs text-slate-400">
+              <Wrench className="w-3 h-3 sm:w-4 sm:h-4" />
               <span>Professional-grade OBD-II diagnostics</span>
             </div>
           </div>

@@ -60,7 +60,8 @@ class OBDConfigManager:
             },
             "last_successful_connection": None,
             "enable_mock_mode": False,
-            "auto_connect_on_start": False
+            "auto_connect_on_start": False,
+            "feedback_data": []
         }
     
     def _save_config(self):
@@ -389,6 +390,49 @@ class OBDConfigManager:
         except Exception as e:
             print(f"Error importing config: {e}")
             return False
+    
+    def add_feedback(self, feedback_entry: Dict[str, Any]) -> bool:
+        """
+        Add user feedback to the feedback database.
+        
+        Args:
+            feedback_entry: Dictionary containing feedback data
+            
+        Returns:
+            True if feedback was added successfully
+        """
+        try:
+            if "feedback_data" not in self._config_data:
+                self._config_data["feedback_data"] = []
+            
+            self._config_data["feedback_data"].append(feedback_entry)
+            self._save_config()
+            return True
+        except Exception as e:
+            print(f"Error adding feedback: {e}")
+            return False
+    
+    def get_feedback_data(self) -> List[Dict[str, Any]]:
+        """
+        Get all feedback data.
+        
+        Returns:
+            List of feedback entries
+        """
+        return self._config_data.get("feedback_data", [])
+    
+    def get_feedback_for_dtc(self, dtc_code: str) -> List[Dict[str, Any]]:
+        """
+        Get feedback entries related to a specific DTC code.
+        
+        Args:
+            dtc_code: DTC code to search for
+            
+        Returns:
+            List of feedback entries for the specified DTC
+        """
+        feedback_data = self._config_data.get("feedback_data", [])
+        return [entry for entry in feedback_data if entry.get("dtc_code") == dtc_code]
     
     def reset_to_defaults(self):
         """Reset configuration to defaults."""

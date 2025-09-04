@@ -34,15 +34,30 @@ You have access to real-time diagnostic data from the vehicle's OBD-II system, i
 When diagnostic data is available from the OBD system, prioritize it over user-provided information.
 If OBD data is not available, fall back to user-provided DTCs and information.
 
-Your task is to:
+Your diagnostic approach should follow these steps:
+1. **Data Analysis**: Systematically analyze all available diagnostic data, noting patterns and relationships between codes and parameters.
+2. **Hypothesis Generation**: Form multiple potential diagnoses based on the data, considering both common and uncommon causes.
+3. **Probability Assessment**: Evaluate the likelihood of each hypothesis based on:
+   - The specific combination of DTCs
+   - Live data parameter values and trends
+   - Vehicle make, model, and year
+   - Known common issues for this vehicle
+4. **Cross-Validation**: Check for consistency between different data sources and look for confirming or contradicting evidence.
+5. **Root Cause Identification**: Determine the most likely underlying cause rather than just addressing symptoms.
+6. **Solution Prioritization**: Recommend fixes in order of simplicity, cost, and safety impact.
+
+Your response should include:
 1. Acknowledge the diagnostic data you are seeing (whether from OBD or user input).
 2. Explain what these codes and parameters mean in simple, clear terms.
-3. Based on the diagnostic data and the car model, diagnose the most likely root cause of the problem.
-4. Suggest a list of concrete steps the user should take to fix the issue, from the simplest (e.g., 'check the gas cap') to the more complex (e.g., 'replace the mass airflow sensor').
-5. If specific parts are likely needed, mention them by name.
-6. If live data shows parameters outside normal ranges, highlight these issues.
+3. Present your diagnostic reasoning process, showing how you arrived at your conclusions.
+4. Based on the diagnostic data and the car model, diagnose the most likely root cause of the problem.
+5. Suggest a list of concrete steps the user should take to fix the issue, from the simplest (e.g., 'check the gas cap') to the more complex (e.g., 'replace the mass airflow sensor').
+6. If specific parts are likely needed, mention them by name.
+7. If live data shows parameters outside normal ranges, highlight these issues.
+8. Provide confidence levels for your diagnoses (High/Medium/Low) based on the strength of evidence.
+9. Mention any additional tests or data that would help confirm your diagnosis.
 
-Maintain a helpful and knowledgeable tone throughout. If you detect critical issues from live data, prioritize safety warnings."""
+Maintain a helpful and knowledgeable tone throughout. If you detect critical issues from live data, prioritize safety warnings. Always encourage professional inspection for safety-critical issues."""
 
     def __init__(self):
         self.model = ChatGoogleGenerativeAI(
@@ -391,11 +406,31 @@ Maintain a helpful and knowledgeable tone throughout. If you detect critical iss
                         f"- {data['name']}: {data['value']} {data['unit']} ({range_status})"
                     )
             
+            # Generate and add diagnostic hypotheses
+            hypotheses = await self._generate_diagnostic_hypotheses(obd_data)
+            if hypotheses:
+                enhanced_parts.append("\n=== DIAGNOSTIC HYPOTHESES ===")
+                for i, hypothesis in enumerate(hypotheses, 1):
+                    enhanced_parts.append(f"\n{i}. {hypothesis['title']} (Confidence: {hypothesis['confidence']})")
+                    enhanced_parts.append(f"   Description: {hypothesis['description']}")
+                    enhanced_parts.append(f"   Likely Causes:")
+                    for cause in hypothesis["likely_causes"]:
+                        enhanced_parts.append(f"   - {cause}")
+            
+            # Add validation warnings
+            validation_warnings = await self._validate_diagnostic_data(obd_data)
+            if validation_warnings:
+                enhanced_parts.append("\n=== DATA VALIDATION WARNINGS ===")
+                for warning in validation_warnings:
+                    enhanced_parts.append(f"\n{warning}")
+            
             enhanced_parts.append("\n=== END OBD DATA ===\n")
             enhanced_parts.append(
-                "Please analyze this real-time diagnostic data and provide your expert assessment."
+                "Please analyze this real-time diagnostic data and provide your expert assessment. "
+                "Consider the diagnostic hypotheses provided and determine the most likely root cause. "
+                "Include confidence levels for your diagnoses and recommend specific repair steps. "
+                "Address any validation warnings in your analysis."
             )
-        
         elif not obd_data.get("obd_connected"):
             enhanced_parts.append(
                 "\n\nNote: OBD adapter not connected. Analysis based on provided information only. "
@@ -403,3 +438,265 @@ Maintain a helpful and knowledgeable tone throughout. If you detect critical iss
             )
         
         return "\n".join(enhanced_parts)
+    
+    async def _generate_diagnostic_hypotheses(self, obd_data: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """
+        Generate multiple diagnostic hypotheses based on OBD data.
+        
+        Args:
+            obd_data: Dictionary containing OBD diagnostic data
+            
+        Returns:
+            List of diagnostic hypotheses with confidence scores
+        """
+        hypotheses = []
+        
+        # Extract key data
+        dtcs = obd_data.get("dtcs", [])
+        live_data = obd_data.get("live_data", {})
+        vehicle_info = obd_data.get("vehicle_info", {})
+        
+        # Hypothesis 1: Fuel system issues (based on P0171, P0174 codes)
+        fuel_system_codes = [dtc for dtc in dtcs if dtc["code"] in ["P0171", "P0172", "P0174", "P0175"]]
+        if fuel_system_codes:
+            hypotheses.append({
+                "id": "fuel_system",
+                "title": "Fuel System Imbalance",
+                "description": "The engine is running too lean or too rich, indicating a fuel system issue.",
+                "likely_causes": [
+                    "Mass Air Flow (MAF) sensor malfunction",
+                    "Oxygen sensor failure",
+                    "Fuel pressure regulator issues",
+                    "Vacuum leaks",
+                    "Clogged fuel filter"
+                ],
+                "confidence": "High" if len(fuel_system_codes) > 1 else "Medium",
+                "dtcs": [dtc["code"] for dtc in fuel_system_codes]
+            })
+        
+        # Hypothesis 2: Ignition system issues (based on misfire codes)
+        misfire_codes = [dtc for dtc in dtcs if dtc["code"].startswith("P03")]
+        if misfire_codes:
+            hypotheses.append({
+                "id": "ignition_system",
+                "title": "Ignition System Malfunction",
+                "description": "Engine misfiring detected, indicating ignition system problems.",
+                "likely_causes": [
+                    "Worn spark plugs",
+                    "Faulty ignition coils",
+                    "Bad spark plug wires",
+                    "Low compression in cylinders"
+                ],
+                "confidence": "High" if any("P0300" in dtc["code"] for dtc in misfire_codes) else "Medium",
+                "dtcs": [dtc["code"] for dtc in misfire_codes]
+            })
+        
+        # Hypothesis 3: Emission system issues (based on catalyst codes)
+        emission_codes = [dtc for dtc in dtcs if dtc["code"] in ["P0420", "P0430"]]
+        if emission_codes:
+            hypotheses.append({
+                "id": "emission_system",
+                "title": "Emission Control System Deterioration",
+                "description": "Catalyst efficiency below threshold, indicating emission system problems.",
+                "likely_causes": [
+                    "Aging catalytic converter",
+                    "Engine running too rich or lean",
+                    "Exhaust leaks",
+                    "Faulty oxygen sensors"
+                ],
+                "confidence": "High",
+                "dtcs": [dtc["code"] for dtc in emission_codes]
+            })
+        
+        # Hypothesis 4: EVAP system issues (based on EVAP codes)
+        evap_codes = [dtc for dtc in dtcs if dtc["code"].startswith("P04") and dtc["code"] not in ["P0420", "P0430"]]
+        if evap_codes:
+            hypotheses.append({
+                "id": "evap_system",
+                "title": "Evaporative Emission Control System Leak",
+                "description": "EVAP system leak detected, indicating vapor emission control problems.",
+                "likely_causes": [
+                    "Loose or faulty gas cap",
+                    "Cracked EVAP hoses",
+                    "Leaking charcoal canister",
+                    "Purge valve malfunction"
+                ],
+                "confidence": "Medium",
+                "dtcs": [dtc["code"] for dtc in evap_codes]
+            })
+        
+        # Hypothesis 5: Sensor issues based on out-of-range parameters
+        out_of_range_params = [pid for pid, data in live_data.items() if not data["in_range"]]
+        if out_of_range_params:
+            hypotheses.append({
+                "id": "sensor_issues",
+                "title": "Sensor Malfunction or Abnormal Operating Conditions",
+                "description": "One or more parameters are outside normal operating ranges.",
+                "likely_causes": [
+                    "Faulty sensors",
+                    "Abnormal operating conditions",
+                    "Electrical issues"
+                ],
+                "confidence": "Medium",
+                "parameters": out_of_range_params
+            })
+        
+        return hypotheses
+    
+    async def _validate_diagnostic_data(self, obd_data: Dict[str, Any]) -> List[str]:
+        """
+        Validate diagnostic data for consistency and flag potential issues.
+        
+        Args:
+            obd_data: Dictionary containing OBD diagnostic data
+            
+        Returns:
+            List of validation warnings or concerns
+        """
+        warnings = []
+        
+        # Extract key data
+        dtcs = obd_data.get("dtcs", [])
+        live_data = obd_data.get("live_data", {})
+        
+        # Check for conflicting codes
+        dtc_codes = [dtc["code"] for dtc in dtcs]
+        
+        # Check for fuel system codes with misfire codes (common combination)
+        fuel_codes = [code for code in dtc_codes if code in ["P0171", "P0172", "P0174", "P0175"]]
+        misfire_codes = [code for code in dtc_codes if code.startswith("P03")]
+        if fuel_codes and misfire_codes:
+            warnings.append(
+                "⚠️  Data Validation Note: Fuel system codes and misfire codes detected together. "
+                "This is common as fuel imbalances often cause misfires. The fuel system issue "
+                "is likely the root cause."
+            )
+        
+        # Check for MAF sensor codes with fuel trim codes
+        maf_codes = [code for code in dtc_codes if code in ["P0100", "P0101", "P0102", "P0103"]]
+        fuel_trim_codes = [code for code in dtc_codes if code in ["P0171", "P0172", "P0174", "P0175"]]
+        if maf_codes and fuel_trim_codes:
+            warnings.append(
+                "⚠️  Data Validation Note: MAF sensor codes and fuel trim codes detected together. "
+                "A faulty MAF sensor often causes incorrect fuel trim values. Consider testing the MAF sensor."
+            )
+        
+        # Check for out-of-range parameters that might explain codes
+        out_of_range_params = []
+        for pid, data in live_data.items():
+            if not data["in_range"]:
+                out_of_range_params.append(f"{data['name']}: {data['value']} {data['unit']}")
+        
+        if out_of_range_params and dtc_codes:
+            warnings.append(
+                "⚠️  Data Validation Note: Out-of-range parameters detected that may explain the DTCs. "
+                f"Parameters: {', '.join(out_of_range_params)}"
+            )
+        elif out_of_range_params:
+            warnings.append(
+                "⚠️  Data Validation Note: Out-of-range parameters detected. "
+                f"Parameters: {', '.join(out_of_range_params)}"
+            )
+        
+        # Check for critical codes
+        critical_codes = [dtc for dtc in dtcs if dtc["severity"] == "critical"]
+        if critical_codes:
+            warnings.append(
+                "🔴 CRITICAL WARNING: Critical DTCs detected. These indicate serious issues that "
+                "require immediate attention. Do not continue driving if safety is compromised."
+            )
+        
+        return warnings
+    
+    async def collect_user_feedback(self, session_id: str, feedback_data: Dict[str, Any]) -> bool:
+        """
+        Collect user feedback on a diagnostic session.
+        
+        Args:
+            session_id: ID of the diagnostic session
+            feedback_data: Dictionary containing feedback information
+            
+        Returns:
+            True if feedback was successfully recorded
+        """
+        try:
+            # Add session context to feedback
+            feedback_entry = {
+                "session_id": session_id,
+                "timestamp": datetime.now().isoformat(),
+                "feedback": feedback_data
+            }
+            
+            # Store feedback using config manager
+            from .obd_config import config_manager
+            return config_manager.add_feedback(feedback_entry)
+        except Exception as e:
+            logger.error(f"Error collecting user feedback: {e}")
+            return False
+    
+    async def analyze_feedback_patterns(self) -> Dict[str, Any]:
+        """
+        Analyze feedback patterns to identify common issues and improve diagnostics.
+        
+        Returns:
+            Dictionary containing feedback analysis results
+        """
+        try:
+            from .obd_config import config_manager
+            
+            # Get all feedback data
+            feedback_data = config_manager.get_feedback_data()
+            
+            # Analyze patterns
+            analysis = {
+                "total_feedback_entries": len(feedback_data),
+                "positive_feedback": 0,
+                "negative_feedback": 0,
+                "dtc_feedback": {},
+                "common_issues": []
+            }
+            
+            # Categorize feedback
+            for entry in feedback_data:
+                feedback = entry.get("feedback", {})
+                rating = feedback.get("rating", 0)
+                
+                if rating >= 4:  # 4-5 stars considered positive
+                    analysis["positive_feedback"] += 1
+                elif rating <= 2:  # 1-2 stars considered negative
+                    analysis["negative_feedback"] += 1
+                
+                # Analyze DTC-specific feedback
+                dtc_code = feedback.get("dtc_code")
+                if dtc_code:
+                    if dtc_code not in analysis["dtc_feedback"]:
+                        analysis["dtc_feedback"][dtc_code] = {
+                            "count": 0,
+                            "positive": 0,
+                            "negative": 0,
+                            "comments": []
+                        }
+                    
+                    analysis["dtc_feedback"][dtc_code]["count"] += 1
+                    if rating >= 4:
+                        analysis["dtc_feedback"][dtc_code]["positive"] += 1
+                    elif rating <= 2:
+                        analysis["dtc_feedback"][dtc_code]["negative"] += 1
+                    
+                    comment = feedback.get("comment", "")
+                    if comment:
+                        analysis["dtc_feedback"][dtc_code]["comments"].append(comment)
+            
+            # Identify common issues from negative feedback
+            for dtc_code, data in analysis["dtc_feedback"].items():
+                if data["negative"] > data["positive"]:
+                    analysis["common_issues"].append({
+                        "dtc_code": dtc_code,
+                        "issue_rate": data["negative"] / data["count"] if data["count"] > 0 else 0,
+                        "comments": data["comments"][:5]  # Limit to first 5 comments
+                    })
+            
+            return analysis
+        except Exception as e:
+            logger.error(f"Error analyzing feedback patterns: {e}")
+            return {}

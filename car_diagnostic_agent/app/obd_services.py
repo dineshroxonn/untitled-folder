@@ -46,7 +46,7 @@ class DTCReaderService:
     
     def _load_dtc_descriptions(self) -> Dict[str, str]:
         """Load DTC code descriptions."""
-        # Basic DTC descriptions - in a real implementation, this would be loaded from a database
+        # Basic DTC descriptions - leveraging Gemini's knowledge rather than maintaining large database
         return {
             "P0100": "Mass or Volume Air Flow Circuit Malfunction",
             "P0101": "Mass or Volume Air Flow Circuit Range/Performance Problem",
@@ -222,6 +222,65 @@ class LiveDataService:
         self._monitoring_task: Optional[asyncio.Task] = None
         self._data_callback = None
     
+    def _get_parameter_ranges(self, pid: str, current_value: float) -> tuple[Optional[float], Optional[float]]:
+        """
+        Get normal min/max ranges for a parameter based on PID and current value.
+        
+        Args:
+            pid: Parameter ID
+            current_value: Current value of the parameter
+            
+        Returns:
+            Tuple of (min_value, max_value) or (None, None) if not defined
+        """
+        # Define normal ranges for common parameters
+        # These ranges are general guidelines and may vary by vehicle
+        parameter_ranges = {
+            # RPM - typical idle range, max varies by engine
+            "0C": (600.0, 8000.0) if current_value > 5000 else (600.0, 4000.0),
+            
+            # Coolant Temperature - Celsius
+            "05": (80.0, 105.0),
+            
+            # Intake Air Temperature - Celsius
+            "0F": (-40.0, 60.0),
+            
+            # Throttle Position - Percentage
+            "11": (0.0, 100.0),
+            
+            # Engine Load - Percentage
+            "04": (0.0, 100.0),
+            
+            # Vehicle Speed - km/h
+            "0D": (0.0, 250.0),
+            
+            # Mass Air Flow - grams/second
+            "10": (0.0, 300.0),
+            
+            # Intake Manifold Pressure - kPa
+            "0B": (20.0, 120.0),
+            
+            # Fuel Level - Percentage
+            "2F": (0.0, 100.0),
+            
+            # Control Module Voltage - Volts
+            "42": (10.0, 15.0),
+            
+            # Absolute Load Value - Percentage
+            "43": (0.0, 100.0),
+            
+            # Ethanol Fuel Percentage
+            "52": (0.0, 100.0),
+            
+            # Ambient Air Temperature - Celsius
+            "46": (-40.0, 50.0),
+        }
+        
+        # Return ranges if defined, otherwise return None
+        if pid in parameter_ranges:
+            return parameter_ranges[pid]
+        return (None, None)
+    
     async def read_parameter(self, pid: str) -> Optional[LiveDataReading]:
         """
         Read a single parameter by PID.
@@ -262,11 +321,16 @@ class LiveDataService:
                         logger.warning(f"Could not convert value '{value}' to float for PID {pid}")
                         value = 0.0
                 
+                # Get min/max values for this parameter
+                min_value, max_value = self._get_parameter_ranges(pid, value)
+                
                 return LiveDataReading(
                     pid=pid,
                     name=pid_info["name"],
                     value=value,
                     unit=response.data.get("unit", pid_info["unit"]),
+                    min_value=min_value,
+                    max_value=max_value,
                     timestamp=datetime.now()
                 )
             else:
