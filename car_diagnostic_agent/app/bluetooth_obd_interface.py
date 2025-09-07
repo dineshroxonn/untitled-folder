@@ -1,20 +1,22 @@
 """
-Bluetooth-Aware OBD Interface Manager
+Bluetooth-Aware OBD Interface Manager for macOS
 
-This module provides an OBD interface manager that handles Bluetooth
-pairing and connection for OBD adapters before establishing the OBD connection.
+This module provides a robust OBD interface manager that uses macOS-specific
+features to automatically find, verify, and connect to Bluetooth OBD adapters.
 """
 
 import asyncio
 import logging
 import obd
 import serial
+import serial.tools.list_ports
 import subprocess
 import time
+import sys
 from typing import Optional, List, Dict, Any
 from datetime import datetime
 
-from .enhanced_obd_interface import PersistentOBDInterfaceManager, OBDConnectionConfig, OBDResponse
+from .enhanced_obd_interface import PersistentOBDInterfaceManager, OBDConnectionConfig, OBDResponse, OBDConnectionError
 from .obd_models import OBDProtocol
 
 logger = logging.getLogger(__name__)
@@ -22,157 +24,172 @@ logger = logging.getLogger(__name__)
 
 class BluetoothOBDInterfaceManager(PersistentOBDInterfaceManager):
     """
-    Bluetooth-Aware OBD Interface Manager.
+    macOS-optimized OBD Interface Manager for Bluetooth adapters.
     
-    This manager handles Bluetooth pairing and connection for OBD adapters
-    before establishing the OBD connection, using the same approach as mobile apps.
+    This manager uses the logic from `mac_obd_connector.py` to provide a
+    reliable, diagnostic-driven connection process on macOS.
     """
     
     def __init__(self, config: Optional[OBDConnectionConfig] = None):
         """
-        Initialize the Bluetooth-Aware OBD Interface Manager.
+        Initialize the macOS Bluetooth OBD Interface Manager.
         
         Args:
             config: Optional OBD connection configuration
         """
         super().__init__(config)
-        self.bluetooth_address = "00:10:CC:4F:36:03"  # Default OBD adapter address
-        self.bluetooth_connected = False
-        
-    def _is_bluetooth_available(self) -> bool:
-        """Check if Bluetooth utilities are available."""
+
+    def _scan_bluetooth_devices(self) -> List[Dict[str, str]]:
+        """Scans for Bluetooth devices using macOS's system_profiler."""
+        logger.info("🔍 Scanning for Bluetooth OBD devices...")
         try:
-            result = subprocess.run(['which', 'blueutil'], 
-                                  capture_output=True, text=True)
-            return result.returncode == 0
-        except Exception:
-            return False
-    
-    def _is_obd_paired(self) -> bool:
-        """Check if OBD device is paired."""
-        try:
-            result = subprocess.run(['blueutil', '--paired'], 
-                                  capture_output=True, text=True)
-            return self.bluetooth_address.lower().replace(':', '-') in result.stdout.lower()
+            result = subprocess.run(
+                ['system_profiler', 'SPBluetoothDataType'],
+                capture_output=True, text=True, timeout=15
+            )
+            if result.returncode != 0:
+                logger.warning("⚠️  Failed to get Bluetooth information from system_profiler")
+                return []
+            lines = result.stdout.split('\n')
+            obd_devices, current = [], {}
+            in_section = False
+            for line in lines:
+                line = line.strip()
+                if not line:
+                    continue
+                if 'Devices' in line and ('Paired' in line or 'Connected' in line):
+                    in_section = True
+                    continue
+                if in_section:
+                    if 'Device Name:' in line:
+                        if current and self._is_obd_device(current.get('name', '')):
+                            obd_devices.append(current)
+                        current = {
+                            'name': line.split(':',1)[1].strip(),
+                            'address': '',
+                            'connected': False
+                        }
+                    elif 'Device Address:' in line and current:
+                        current['address'] = line.split(':',1)[1].strip()
+                    elif 'Connected:' in line and current:
+                        current['connected'] = 'yes' in line.split(':',1)[1].strip().lower()
+            if current and self._is_obd_device(current.get('name', '')):
+                obd_devices.append(current)
+            return obd_devices
         except Exception as e:
-            logger.warning(f"Error checking if OBD is paired: {e}")
-            return False
-    
-    def _connect_bluetooth_device(self) -> bool:
-        """Connect to the Bluetooth OBD device."""
+            logger.error(f"❌ Error scanning Bluetooth devices: {e}")
+            return []
+
+    def _is_obd_device(self, name: str) -> bool:
+        """Checks if a device name suggests it's an OBD scanner."""
+        return any(k in name.upper() for k in ['OBD', 'ELM327', 'OBDII', 'BLUE DRIVER', 'VGATE'])
+
+    def _scan_serial_ports(self) -> List[Dict[str, str]]:
+        """Scans for serial ports using pyserial."""
+        logger.info("🔌 Scanning for serial ports...")
         try:
-            logger.info(f"Connecting to Bluetooth OBD device {self.bluetooth_address}")
-            
-            # Connect to the device
-            result = subprocess.run(['blueutil', '--connect', self.bluetooth_address], 
-                                  capture_output=True, text=True)
-            
-            if result.returncode == 0:
-                logger.info("Bluetooth connection established")
-                time.sleep(2)  # Wait for connection to stabilize
-                self.bluetooth_connected = True
+            ports = list(serial.tools.list_ports.comports())
+            result = []
+            for p in ports:
+                info = {
+                    'device': p.device,
+                    'description': p.description or "n/a",
+                    'manufacturer': p.manufacturer or "Unknown",
+                    'is_obd': self._is_obd_serial_port(p)
+                }
+                result.append(info)
+            return result
+        except Exception as e:
+            logger.error(f"❌ Error scanning serial ports: {e}")
+            return []
+
+    def _is_obd_serial_port(self, port) -> bool:
+        """Checks if a serial port is likely an OBD device."""
+        name = port.device.upper()
+        desc = (port.description or "").upper()
+        patterns = ['OBD', 'ELM327', 'BLUETOOTH', 'USB SERIAL', 'FTDI', 'CH340', 'CP2102', 'PL2303']
+        return any(pat in name or pat in desc for pat in patterns)
+
+    def _find_obd_serial_port(self) -> Optional[str]:
+        """Finds the most likely OBD serial port."""
+        logger.info("🔍 Looking for OBD serial port...")
+        ports = self._scan_serial_ports()
+        for p in ports:
+            dn = p['device'].upper()
+            if p['is_obd'] and 'INCOMING-PORT' not in dn:
+                logger.info(f"✅ Found likely OBD port: {p['device']}")
+                return p['device']
+        logger.warning("⚠️  No specific OBD port found; listing all:")
+        for p in ports:
+            logger.warning(f"  - {p['device']} ({'OBD' if p['is_obd'] else 'non-OBD'})")
+        return None
+
+    def _test_serial_connection(self, port: str, baudrate: int = 38400) -> bool:
+        """Performs a low-level test of the serial connection."""
+        logger.info(f"🧪 Testing serial connection to {port} at {baudrate} baud...")
+        try:
+            with serial.Serial(
+                port=port,
+                baudrate=baudrate,
+                timeout=3,
+                write_timeout=3,
+                parity=serial.PARITY_NONE,
+                stopbits=serial.STOPBITS_ONE,
+                bytesize=serial.EIGHTBITS
+            ) as ser:
+                time.sleep(1)
+                ser.reset_input_buffer()
+                ser.write(b"ATZ\r")
+                ser.flush()
+                time.sleep(2)
+                resp = ser.read(ser.in_waiting or 128)
+            if resp and any(x in resp.decode(errors='ignore').upper() for x in ['ELM', 'OK', '>']):
+                logger.info("✅ ELM327 response detected. Serial test passed.")
                 return True
-            else:
-                logger.error(f"Failed to connect to Bluetooth device: {result.stderr}")
-                self.bluetooth_connected = False
-                return False
-                
+            logger.warning("⚠️  No valid ELM327 response received from serial test.")
+            return False
         except Exception as e:
-            logger.error(f"Error connecting to Bluetooth device: {e}")
-            self.bluetooth_connected = False
+            logger.error(f"❌ Serial connection test failed: {e}")
             return False
-    
-    def _ensure_bluetooth_connection(self) -> bool:
-        """Ensure Bluetooth connection to OBD device is established."""
-        # Check if Bluetooth utilities are available
-        if not self._is_bluetooth_available():
-            logger.warning("Bluetooth utilities not available")
-            return False
-        
-        # Check if device is paired
-        if not self._is_obd_paired():
-            logger.warning("OBD device not paired")
-            return False
-        
-        # Connect to the device
-        return self._connect_bluetooth_device()
-    
+
     async def _establish_connection(self):
-        """Internal method to establish OBD connection with Bluetooth handling."""
-        # First ensure Bluetooth connection
-        if not self._ensure_bluetooth_connection():
-            logger.warning("Could not establish Bluetooth connection, proceeding with direct connection")
-        
-        # Then establish OBD connection using parent method
+        """
+        Internal method to establish OBD connection using the macOS-specific
+        diagnostic-driven approach.
+        """
+        # This method is only for macOS with Bluetooth
+        if not sys.platform == "darwin":
+            logger.info("Not on macOS, falling back to default connection method.")
+            await super()._establish_connection()
+            return
+
+        logger.info("Starting macOS-specific OBD connection process...")
+        loop = asyncio.get_event_loop()
+
+        # Run synchronous scanning methods in a thread pool executor
+        self._scan_bluetooth_devices() # Run this to inform the user
+        port = await loop.run_in_executor(None, self._find_obd_serial_port)
+
+        if not port:
+            raise OBDConnectionError("Could not find a valid OBD serial port on macOS.")
+
+        # Run the serial test in the executor
+        is_valid = await loop.run_in_executor(None, self._test_serial_connection, port)
+
+        if not is_valid:
+            raise OBDConnectionError(f"Serial test failed for port {port}. The device may not be a responsive ELM327 adapter.")
+
+        # Crucial step: convert /dev/cu.* to /dev/tty.* for python-obd
+        tty_port = port.replace('/dev/cu.', '/dev/tty.')
+        logger.info(f"macOS fix: Using port '{tty_port}' for python-obd.")
+
+        # Set the discovered and verified port in the config
+        self.config.port = tty_port
+        self.config.baudrate = 38400  # Use baudrate proven by mac_obd_connector.py
+
+        # Now, call the parent's _establish_connection to do the actual python-obd connection
+        logger.info("Handing off to parent class to establish final connection...")
         await super()._establish_connection()
-    
-    async def connect(self, config: Optional[OBDConnectionConfig] = None) -> OBDResponse:
-        """
-        Establish persistent connection to OBD-II adapter with Bluetooth handling.
-        
-        Args:
-            config: Optional configuration override
-            
-        Returns:
-            OBDResponse indicating connection success/failure
-        """
-        async with self._connection_lock:
-            # If already connected with a valid connection, return success
-            if self.is_connected:
-                logger.info("Already connected to OBD adapter")
-                return OBDResponse(
-                    success=True,
-                    data={"status": "already_connected", "protocol": str(self._connection.protocol_name())},
-                    timestamp=datetime.now()
-                )
-            
-            # Update config if provided
-            if config:
-                self._update_config(config)
-            
-            try:
-                # Attempt connection with Bluetooth handling
-                await self._establish_connection()
-                
-                # Start keep-alive and monitoring tasks
-                await self._start_persistent_tasks()
-                
-                logger.info("Successfully connected to OBD adapter with Bluetooth support")
-                return OBDResponse(
-                    success=True,
-                    data={"status": "connected", "protocol": str(self._connection.protocol_name())},
-                    timestamp=datetime.now()
-                )
-            except Exception as e:
-                logger.error(f"Failed to connect to OBD adapter: {e}")
-                return OBDResponse(
-                    success=False,
-                    data=None,
-                    error_message=str(e),
-                    timestamp=datetime.now()
-                )
-    
-    async def disconnect(self) -> OBDResponse:
-        """
-        Disconnect from OBD-II adapter and stop persistent tasks.
-        
-        Returns:
-            OBDResponse indicating disconnection status
-        """
-        # First disconnect OBD connection using parent method
-        result = await super().disconnect()
-        
-        # Then disconnect Bluetooth if needed
-        if self.bluetooth_connected:
-            try:
-                subprocess.run(['blueutil', '--disconnect', self.bluetooth_address], 
-                             capture_output=True)
-                self.bluetooth_connected = False
-                logger.info("Bluetooth device disconnected")
-            except Exception as e:
-                logger.warning(f"Error disconnecting Bluetooth device: {e}")
-        
-        return result
 
 
 # Backward compatibility alias

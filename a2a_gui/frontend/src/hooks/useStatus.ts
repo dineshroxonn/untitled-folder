@@ -30,26 +30,11 @@ export const useStatus = (addMessage: (type: 'info' | 'error', content: string) 
 
   const handleConnect = async () => {
     setConnectionStatus('CONNECTING');
-    addMessage('info', 'Attempting to connect to vehicle...');
+    addMessage('info', 'Attempting to connect to vehicle... The backend will now automatically scan, verify, and connect.');
     try {
-      // Try to connect with auto-detection first
-      let response = await api.connectObd();
-      let data = await response.json();
-      
-      // If auto-detection fails, try with the Bluetooth OBD port we found
-      if (!response.ok || !data.success) {
-        addMessage('info', 'Auto-detection failed, trying Bluetooth OBD port...');
-        const config = {
-          port: '/dev/tty.OBDII',
-          baudrate: 38400,
-          timeout: 30.0,
-          protocol: 'auto',
-          auto_detect: true,
-          max_retries: 3
-        };
-        response = await api.connectObd(config);
-        data = await response.json();
-      }
+      // Call connect with no config. The backend will handle the entire process.
+      const response = await api.connectObd();
+      const data = await response.json();
       
       if (response.ok && data.success) {
         setConnectionStatus('CONNECTED');
