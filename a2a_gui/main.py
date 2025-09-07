@@ -50,19 +50,10 @@ app.include_router(api_router, prefix="/api")
 async def shutdown_event():
     await agent_client.close()
 
-# Serve static files (React build)
-static_dir = Path(__file__).parent / "frontend" / "dist"
+# Serve static files (Next.js build)
+static_dir = Path(__file__).parent / "frontend" / ".next"
 if static_dir.exists():
-    app.mount("/assets", StaticFiles(directory=static_dir / "assets"), name="assets")
-
-    @app.get("/{full_path:path}")
-    async def serve_frontend(full_path: str, request: Request):
-        # Exclude API routes from being served by the frontend
-        if full_path.startswith("api/"):
-            raise HTTPException(status_code=404, detail="Not Found")
-        
-        index_file = static_dir / "index.html"
-        return FileResponse(index_file)
+    app.mount("/", StaticFiles(directory=static_dir), name="static")
 else:
     @app.get("/")
     async def root():
