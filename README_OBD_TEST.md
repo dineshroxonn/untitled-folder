@@ -11,7 +11,7 @@ This script helps diagnose connectivity issues with OBD-II Bluetooth adapters on
 ## Installation
 
 ```bash
-pip install -r requirements.txt
+
 ```
 
 ## Usage

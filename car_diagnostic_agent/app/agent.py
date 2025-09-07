@@ -1,4 +1,3 @@
-
 import os
 import asyncio
 import logging
@@ -9,7 +8,17 @@ from datetime import datetime
 from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_google_genai import ChatGoogleGenerativeAI
 
-from .obd_interface import OBDInterfaceManager, MockOBDInterfaceManager
+# Use the Bluetooth-aware OBD interface for persistent connections with Bluetooth support
+try:
+    from .bluetooth_obd_interface import BluetoothOBDInterfaceManager as OBDInterfaceManager, MockOBDInterfaceManager
+except ImportError:
+    # Fallback to enhanced version if Bluetooth version doesn't exist
+    try:
+        from .enhanced_obd_interface import PersistentOBDInterfaceManager as OBDInterfaceManager, MockOBDInterfaceManager
+    except ImportError:
+        # Final fallback to original
+        from .obd_interface import OBDInterfaceManager, MockOBDInterfaceManager
+
 from .obd_services import DTCReaderService, LiveDataService, VehicleInfoService
 from .obd_config import config_manager
 from .obd_models import DTCInfo, LiveDataReading, VehicleInfo, DiagnosticSession, DTCSeverity, DTCStatus
@@ -19,11 +28,10 @@ logger = logging.getLogger(__name__)
 
 
 class CarDiagnosticAgent:
-    """Car Diagnostic Agent - an AI car mechanic."""
+    """Car Diagnostic Agent - an AI car mechanic with persistent OBD connections."""
 
     SYSTEM_INSTRUCTION = """You are an expert car mechanic, but you will respond as if you ARE the car.
-Your persona is the specific car model the user mentions.
-Start your response by introducing yourself, for example: 'Hello, I am a 2015 Ford Focus.'
+Your persona is the specific car model the user mentions. Start your response by introducing yourself, for example: 'Hello, I am a 2015 Ford Focus.'
 
 You have access to real-time diagnostic data from the vehicle's OBD-II system, including:
 - Live Diagnostic Trouble Codes (DTCs) read directly from the ECU
@@ -76,14 +84,14 @@ Maintain a helpful and knowledgeable tone throughout. If you detect critical iss
         # OBD system will be initialized by the server startup event
     
     async def initialize_obd_system(self):
-        """Initialize the OBD system based on configuration."""
+        """Initialize the OBD system with persistent connection support."""
         try:
             # Check if mock mode is enabled
             if config_manager.is_mock_mode_enabled():
                 logger.info("Initializing OBD system in mock mode")
                 self.obd_manager = MockOBDInterfaceManager(config_manager.get_default_config())
             else:
-                logger.info("Initializing OBD system with real interface")
+                logger.info("Initializing OBD system with persistent connection interface")
                 self.obd_manager = OBDInterfaceManager(config_manager.get_default_config())
             
             # Initialize services
@@ -123,7 +131,7 @@ Maintain a helpful and knowledgeable tone throughout. If you detect critical iss
             logger.error(f"Auto-connect attempt failed: {e}")
     
     async def connect_obd(self, config=None) -> Dict[str, Any]:
-        """Manually connect to OBD adapter."""
+        """Manually connect to OBD adapter with persistent connection support."""
         if not self.obd_manager:
             return {"success": False, "error": "OBD system not initialized"}
         
@@ -131,20 +139,20 @@ Maintain a helpful and knowledgeable tone throughout. If you detect critical iss
             response = await self.obd_manager.connect(config)
             if response.success:
                 config_manager.save_successful_connection(self.obd_manager.config)
-                logger.info("OBD connection established")
+                logger.info("OBD connection established with persistent connection support")
             return {"success": response.success, "data": response.data, "error": response.error_message}
         except Exception as e:
             logger.error(f"OBD connection failed: {e}")
             return {"success": False, "error": str(e)}
     
     async def disconnect_obd(self) -> Dict[str, Any]:
-        """Disconnect from OBD adapter."""
+        """Disconnect from OBD adapter and stop persistent connection tasks."""
         if not self.obd_manager:
             return {"success": False, "error": "OBD system not initialized"}
         
         try:
             response = await self.obd_manager.disconnect()
-            logger.info("OBD disconnected")
+            logger.info("OBD disconnected and persistent connection tasks stopped")
             return {"success": response.success, "data": response.data, "error": response.error_message}
         except Exception as e:
             logger.error(f"OBD disconnection failed: {e}")
@@ -292,13 +300,13 @@ Maintain a helpful and knowledgeable tone throughout. If you detect critical iss
             yield chunk.content
     
     async def _handle_obd_connect_command(self) -> AsyncIterable[str]:
-        """Handle OBD connection command."""
-        yield "Attempting to connect to your vehicle's OBD-II port...\n\n"
+        """Handle OBD connection command with persistent connection info."""
+        yield "Attempting to connect to your vehicle's OBD-II port with persistent connection support...\n\n"
         
         result = await self.connect_obd()
         
         if result["success"]:
-            yield "✅ Successfully connected to your vehicle!\n\n"
+            yield "✅ Successfully connected to your vehicle with persistent connection!\n\n"
             
             # Get connection info
             if self.obd_manager:
@@ -309,6 +317,7 @@ Maintain a helpful and knowledgeable tone throughout. If you detect critical iss
                 yield f"- Supported Commands: {conn_info.get('supported_commands', 0)}\n\n"
             
             yield "I'm now ready to read live diagnostic data from your vehicle. "
+            yield "The connection will be maintained automatically with keep-alive mechanisms. "
             yield "You can ask me to scan for trouble codes or request specific parameter readings.\n"
         else:
             yield f"❌ Failed to connect to OBD adapter: {result.get('error', 'Unknown error')}\n\n"
@@ -320,13 +329,13 @@ Maintain a helpful and knowledgeable tone throughout. If you detect critical iss
             yield "You can still provide DTCs manually for diagnosis.\n"
     
     async def _handle_obd_disconnect_command(self) -> AsyncIterable[str]:
-        """Handle OBD disconnection command."""
-        yield "Disconnecting from OBD adapter...\n\n"
+        """Handle OBD disconnection command with persistent connection cleanup."""
+        yield "Disconnecting from OBD adapter and stopping persistent connection tasks...\n\n"
         
         result = await self.disconnect_obd()
         
         if result["success"]:
-            yield "✅ Successfully disconnected from OBD adapter.\n\n"
+            yield "✅ Successfully disconnected from OBD adapter and stopped persistent connection tasks.\n\n"
             yield "I'll now work with manually provided DTCs and information.\n"
         else:
             yield f"⚠️  Disconnection issue: {result.get('error', 'Unknown error')}\n\n"
@@ -424,7 +433,7 @@ Maintain a helpful and knowledgeable tone throughout. If you detect critical iss
                 for warning in validation_warnings:
                     enhanced_parts.append(f"\n{warning}")
             
-            enhanced_parts.append("\n=== END OBD DATA ===\n")
+            enhanced_parts.append("\n=== END OBD DATA ===")
             enhanced_parts.append(
                 "Please analyze this real-time diagnostic data and provide your expert assessment. "
                 "Consider the diagnostic hypotheses provided and determine the most likely root cause. "

@@ -65,10 +65,17 @@ a2a_app = A2AStarletteApplication(
 # --- Additional API Endpoints ---
 async def connect_obd(request):
     """Endpoint to connect to the OBD adapter."""
-    body = await request.json()
-    config = body.get("config")
-    result = await agent.connect_obd(config)
-    return JSONResponse(result)
+    try:
+        body = await request.json()
+        config = body.get("config")
+        result = await agent.connect_obd(config)
+        return JSONResponse(result)
+    except Exception as e:
+        logger.error(f"Error in connect_obd endpoint: {e}")
+        return JSONResponse(
+            {"success": False, "error": str(e)}, 
+            status_code=500
+        )
 
 async def disconnect_obd(request):
     """Endpoint to disconnect from the OBD adapter."""

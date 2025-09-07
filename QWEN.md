@@ -56,7 +56,6 @@ Key dependencies include:
    ```
 3. Run the agent:
    ```bash
-   uv run python -m app
    ```
 
 The agent will start on `http://localhost:10011`
