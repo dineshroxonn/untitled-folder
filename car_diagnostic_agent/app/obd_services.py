@@ -11,7 +11,7 @@ import obd
 from datetime import datetime
 from typing import List, Dict, Optional, Any
 
-from .obd_interface import OBDInterfaceManager
+from .bluetooth_obd_interface import PersistentOBDInterfaceManager as OBDInterfaceManager
 from .obd_models import (
     DTCInfo, 
     DTCStatus, 

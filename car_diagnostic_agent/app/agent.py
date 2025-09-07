@@ -8,16 +8,7 @@ from datetime import datetime
 from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_google_genai import ChatGoogleGenerativeAI
 
-# Use the Bluetooth-aware OBD interface for persistent connections with Bluetooth support
-try:
-    from .bluetooth_obd_interface import BluetoothOBDInterfaceManager as OBDInterfaceManager, MockOBDInterfaceManager
-except ImportError:
-    # Fallback to enhanced version if Bluetooth version doesn't exist
-    try:
-        from .enhanced_obd_interface import PersistentOBDInterfaceManager as OBDInterfaceManager, MockOBDInterfaceManager
-    except ImportError:
-        # Final fallback to original
-        from .obd_interface import OBDInterfaceManager, MockOBDInterfaceManager
+from .bluetooth_obd_interface import BluetoothOBDInterfaceManager as OBDInterfaceManager
 
 from .obd_services import DTCReaderService, LiveDataService, VehicleInfoService
 from .obd_config import config_manager
@@ -86,13 +77,8 @@ Maintain a helpful and knowledgeable tone throughout. If you detect critical iss
     async def initialize_obd_system(self):
         """Initialize the OBD system with persistent connection support."""
         try:
-            # Check if mock mode is enabled
-            if config_manager.is_mock_mode_enabled():
-                logger.info("Initializing OBD system in mock mode")
-                self.obd_manager = MockOBDInterfaceManager(config_manager.get_default_config())
-            else:
-                logger.info("Initializing OBD system with persistent connection interface")
-                self.obd_manager = OBDInterfaceManager(config_manager.get_default_config())
+            logger.info("Initializing OBD system with persistent connection interface")
+            self.obd_manager = OBDInterfaceManager(config_manager.get_default_config())
             
             # Initialize services
             self.dtc_reader = DTCReaderService(self.obd_manager)
