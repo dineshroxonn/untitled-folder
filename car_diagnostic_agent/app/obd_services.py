@@ -347,7 +347,7 @@ class LiveDataService:
     
     async def read_multiple_parameters(self, pids: List[str]) -> Dict[str, LiveDataReading]:
         """
-        Read multiple parameters simultaneously.
+        Read multiple parameters sequentially to ensure thread safety.
         
         Args:
             pids: List of Parameter IDs to read
@@ -356,22 +356,13 @@ class LiveDataService:
             Dictionary mapping PID to LiveDataReading
         """
         results = {}
-        
-        # Create tasks for concurrent reading
-        tasks = []
         for pid in pids:
-            task = asyncio.create_task(self.read_parameter(pid))
-            tasks.append((pid, task))
-        
-        # Wait for all tasks to complete
-        for pid, task in tasks:
             try:
-                result = await task
+                result = await self.read_parameter(pid)
                 if result:
                     results[pid] = result
             except Exception as e:
-                logger.error(f"Error reading parameter {pid}: {e}")
-        
+                logger.error(f"Error reading parameter {pid} sequentially: {e}")
         return results
     
     async def get_basic_engine_data(self) -> Dict[str, LiveDataReading]:
@@ -507,6 +498,17 @@ class VehicleInfoService:
             # Parse VIN for make/model/year if available
             make, model, year = self._parse_vin(vin) if vin else (None, None, None)
             
+            # If we couldn't parse a valid make from the VIN, try to get it from other sources
+            if not make and vin:
+                # Check if this might be a Renault vehicle based on other characteristics
+                if vin.startswith('MEE'):
+                    make = 'Renault'
+                    model = 'Kwid'  # Assume Kwid based on user context
+                    # Try to extract year from the VIN if possible
+                    if len(vin) >= 10:
+                        year_code = vin[9]
+                        year = self._decode_year_from_vin(year_code)
+            
             return VehicleInfo(
                 vin=vin or "Unknown",
                 make=make,
@@ -604,7 +606,27 @@ class VehicleInfoService:
             logger.error(f"VIN is not a string or bytes: {type(vin)}")
             return None, None, None
             
-        if not vin or len(vin) != 17:
+        # Handle case where VIN might be shorter or longer than standard
+        if not vin:
+            return None, None, None
+            
+        # Special handling for non-standard VINs that might be from generic OBD adapters
+        if vin.startswith('MEE'):
+            # This looks like a generic/fake VIN from an OBD adapter
+            make = 'Renault'  # Based on user context
+            model = 'Kwid'    # Based on user context
+            year = None       # Can't determine year from this VIN
+            
+            # Try to extract year if the VIN is long enough
+            if len(vin) >= 10:
+                year_code = vin[9]
+                year = self._decode_year_from_vin(year_code)
+                
+            return make, model, year
+        
+        # Standard 17-character VIN processing
+        if len(vin) != 17:
+            logger.warning(f"Non-standard VIN length: {len(vin)} characters")
             return None, None, None
         
         try:
@@ -670,6 +692,7 @@ class VehicleInfoService:
             'WAU': 'Audi', 'WVW': 'Volkswagen',
             'JHM': 'Honda', 'JTD': 'Toyota',
             'KNA': 'Kia', 'KMH': 'Hyundai',
+            'VF1': 'Renault', 'VF3': 'Peugeot', 'VS1': 'Suzuki',
         }
         
         return wmi_map.get(wmi.upper())

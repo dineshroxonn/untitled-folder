@@ -50,6 +50,7 @@ class PersistentOBDInterfaceManager:
         self._is_connected = False
         self._supported_commands: List[obd.OBDCommand] = []
         self._connection_lock = asyncio.Lock()
+        self._query_lock = asyncio.Lock()  # Add a lock for queries
         
         self._keep_alive_task: Optional[asyncio.Task] = None
         self._keep_alive_interval = 15
@@ -68,11 +69,16 @@ class PersistentOBDInterfaceManager:
             return False
             
         # Check if the connection object thinks it's connected
-        if not self._connection.is_connected():
-            logger.debug("Not connected: _connection.is_connected() returned False")
+        try:
+            connected = self._connection.is_connected()
+            if not connected:
+                logger.debug("Not connected: _connection.is_connected() returned False")
+                return False
+        except Exception as e:
+            logger.debug(f"Error checking connection status: {e}")
             return False
             
-        logger.debug(f"Checking connection status - _is_connected: {self._is_connected}, _connection: {self._connection}, connection.is_connected(): {self._connection.is_connected() if self._connection else 'N/A'}")
+        logger.debug(f"Connection appears to be alive")
         return True
     
     async def connect(self, config: Optional[OBDConnectionConfig] = None) -> OBDResponse:
@@ -238,6 +244,20 @@ class PersistentOBDInterfaceManager:
                 logger.error(f"Error during disconnection: {e}")
                 return OBDResponse(success=False, data=None, error_message=str(e), timestamp=datetime.now())
     
+    async def _test_connection_health(self) -> bool:
+        """Test if the connection is still healthy by sending a simple command."""
+        if not self._connection:
+            return False
+            
+        try:
+            # Send a simple command to test connection
+            loop = asyncio.get_event_loop()
+            response = await loop.run_in_executor(None, self._connection.query, obd.commands.ELM_VERSION)
+            return response is not None and not response.is_null()
+        except Exception as e:
+            logger.debug(f"Connection health test failed: {e}")
+            return False
+
     async def query(self, command: obd.OBDCommand) -> OBDResponse:
         logger.info(f"Querying OBD command: {command.name}")
         if not self.is_connected:
@@ -249,6 +269,15 @@ class PersistentOBDInterfaceManager:
                     return OBDResponse(success=False, data=None, error_message="Not connected and reconnection failed")
             else:
                 return OBDResponse(success=False, data=None, error_message="Not connected to OBD adapter")
+        
+        # Test connection health before executing the main query
+        if not await self._test_connection_health():
+            logger.warning("Connection health check failed, attempting to reconnect")
+            if self._auto_reconnect:
+                reconnect_result = await self.reconnect()
+                if not reconnect_result.success:
+                    logger.error("Reconnection failed")
+                    return OBDResponse(success=False, data=None, error_message="Connection lost and reconnection failed")
         
         for attempt in range(2):  # Reduced from 3
             try:
@@ -269,6 +298,29 @@ class PersistentOBDInterfaceManager:
                     data={"command": command.name, "value": response.value, "unit": str(response.unit) if response.unit else None},
                     timestamp=datetime.now()
                 )
+            except (OSError, serial.SerialException) as e:
+                logger.error(f"Serial error executing query {command.name} (attempt {attempt + 1}): {e}")
+                # Mark connection as disconnected due to serial error
+                self._is_connected = False
+                if self._connection:
+                    try:
+                        self._connection.close()
+                    except:
+                        pass
+                    self._connection = None
+                
+                # Try to reconnect if this is the first attempt
+                if attempt < 1 and self._auto_reconnect:
+                    logger.info("Attempting to reconnect after serial error")
+                    reconnect_result = await self.reconnect()
+                    if reconnect_result.success:
+                        logger.info("Reconnection successful, retrying query")
+                        continue
+                    else:
+                        logger.error("Reconnection failed")
+                        return OBDResponse(success=False, data=None, error_message=f"Connection lost and reconnection failed: {str(e)}")
+                else:
+                    return OBDResponse(success=False, data=None, error_message=f"Serial error: {str(e)}")
             except Exception as e:
                 logger.error(f"Error executing query {command.name} (attempt {attempt + 1}): {e}")
                 logger.exception("Exception details:")
@@ -360,42 +412,6 @@ class BluetoothOBDInterfaceManager(PersistentOBDInterfaceManager):
             logger.error(f"❌ Error scanning serial ports: {e}")
         return None
 
-    def _test_serial_connection(self, port: str, baudrate: int = 38400) -> bool:
-        logger.info(f"🧪 Testing serial connection to {port} at {baudrate} baud...")
-        try:
-            ser = serial.Serial(
-                port=port,
-                baudrate=baudrate,
-                timeout=3,
-                write_timeout=3,
-                parity=serial.PARITY_NONE,
-                stopbits=serial.STOPBITS_ONE,
-                bytesize=serial.EIGHTBITS
-            )
-            logger.info(f"Serial port opened successfully")
-            time.sleep(1)
-            ser.reset_input_buffer()
-            logger.info(f"Input buffer reset")
-            ser.write(b"ATZ\r")
-            logger.info(f"Sent ATZ command")
-            ser.flush()
-            logger.info(f"Flushed output buffer")
-            time.sleep(2)
-            resp = ser.read(ser.in_waiting or 128)
-            logger.info(f"Read response: {resp}")
-            ser.close()
-            if resp and any(x in resp.decode(errors='ignore').upper() for x in ['ELM', 'OK', '>']):
-                logger.info("✅ ELM327 response detected. Serial test passed.")
-                return True
-            logger.warning(f"⚠️  No valid response. Response length: {len(resp) if resp else 0}")
-            if resp:
-                logger.warning(f"Response content: {resp.decode(errors='ignore')}")
-            return False
-        except Exception as e:
-            logger.error(f"❌ Serial connection test failed: {e}")
-            logger.exception("Exception details:")
-            return False
-
     async def _establish_connection(self):
         if not sys.platform == "darwin":
             await super()._establish_connection()
@@ -409,9 +425,6 @@ class BluetoothOBDInterfaceManager(PersistentOBDInterfaceManager):
             raise OBDConnectionError("Could not find a valid OBD serial port on macOS.")
 
         logger.info(f"Found OBD port: {port}")
-        is_valid = await loop.run_in_executor(None, self._test_serial_connection, port)
-        if not is_valid:
-            raise OBDConnectionError(f"Serial test failed for port {port}.")
 
         # Add delay to ensure Bluetooth connection is fully established
         await asyncio.sleep(2)
