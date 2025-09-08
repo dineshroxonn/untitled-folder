@@ -23,7 +23,8 @@ export const api = {
         }
       }
     };
-    eventSource.onerror = () => {
+    eventSource.onerror = (event) => {
+      console.error('EventSource error:', event);
       onError(new Error('Connection to the diagnostic stream failed.'));
       eventSource.close();
     };

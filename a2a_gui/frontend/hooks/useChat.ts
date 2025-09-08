@@ -49,6 +49,7 @@ export const useChat = () => {
         if (data.error) {
           addMessage('error', `Agent Error: ${data.error}`);
           setIsLoading(false);
+          streamCompleted = true; // Mark as completed to prevent duplicate error messages
         }
         if (data.status === 'complete') {
           streamCompleted = true;
@@ -57,7 +58,7 @@ export const useChat = () => {
       },
       (error) => {
         if (!streamCompleted) {
-          addMessage('error', error.message);
+          addMessage('error', `Connection Error: ${error.message}`);
         }
         setIsLoading(false);
       }
