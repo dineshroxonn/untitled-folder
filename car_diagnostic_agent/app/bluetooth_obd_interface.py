@@ -293,9 +293,28 @@ class PersistentOBDInterfaceManager:
                         continue
                     return OBDResponse(success=False, data=None, error_message=f"No data for command {command.name}")
                 
+                # Extract numeric value from response, handling units properly
+                value = response.value
+                unit = str(response.unit) if response.unit else None
+                
+                # If value is a complex object with units, extract the numeric part
+                if hasattr(value, 'magnitude'):
+                    # For OBD unit objects, get the magnitude
+                    value = value.magnitude
+                elif isinstance(value, str) and ' ' in value:
+                    # If it's a string with spaces, it likely has units attached
+                    # Try to extract the numeric part
+                    import re
+                    match = re.search(r'[\d\.]+', value)
+                    if match:
+                        try:
+                            value = float(match.group())
+                        except ValueError:
+                            pass  # Keep original value if conversion fails
+                
                 return OBDResponse(
                     success=True,
-                    data={"command": command.name, "value": response.value, "unit": str(response.unit) if response.unit else None},
+                    data={"command": command.name, "value": value, "unit": unit},
                     timestamp=datetime.now()
                 )
             except (OSError, serial.SerialException) as e:

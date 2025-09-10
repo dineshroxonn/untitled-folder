@@ -314,10 +314,27 @@ class LiveDataService:
                 elif isinstance(value, (int, float)):
                     value = float(value)
                 else:
-                    # Try to convert string values to float
+                    # Try to convert string values to float, extracting numeric part if needed
                     try:
-                        value = float(str(value))
-                    except (ValueError, TypeError):
+                        # Convert to string and try to extract numeric value
+                        value_str = str(value)
+                        
+                        # If it's a complex object with units, try to extract the numeric part
+                        if isinstance(value, obd.UnitsAndScaling.Unit):
+                            # For OBD unit objects, get the magnitude
+                            value = float(value.magnitude)
+                        elif ' ' in value_str and not isinstance(value, (int, float)):
+                            # If it contains spaces, it likely has units attached
+                            # Try to extract the first numeric part
+                            import re
+                            match = re.search(r'[\d\.]+', value_str)
+                            if match:
+                                value = float(match.group())
+                            else:
+                                value = float(value_str)
+                        else:
+                            value = float(value_str)
+                    except (ValueError, TypeError, AttributeError):
                         logger.warning(f"Could not convert value '{value}' to float for PID {pid}")
                         value = 0.0
                 
