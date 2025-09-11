@@ -1,0 +1,18 @@
+{
+  "Comment": "Add DNS record for carcare.roxonn.com",
+  "Changes": [
+    {
+      "Action": "UPSERT",
+      "ResourceRecordSet": {
+        "Name": "carcare.roxonn.com.",
+        "Type": "CNAME",
+        "TTL": 300,
+        "ResourceRecords": [
+          {
+            "Value": "roxonn-alb-1532241500.ap-south-1.elb.amazonaws.com."
+          }
+        ]
+      }
+    }
+  ]
+}

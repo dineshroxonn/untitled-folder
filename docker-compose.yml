@@ -1,0 +1,26 @@
+version: '3.8'
+
+services:
+  car-diagnostic-agent:
+    build: 
+      context: ./car_diagnostic_agent
+    ports:
+      - "10011:10011"
+    environment:
+      - GOOGLE_API_KEY=AIzaSyBk6Yy9SsWBTmhdH3mK6MG3gOxMsY0b63o
+    volumes:
+      - /dev:/dev  # For OBD-II device access
+    privileged: true  # May be needed for serial device access
+    restart: unless-stopped
+
+  a2a-gui:
+    build:
+      context: ./a2a_gui
+    ports:
+      - "9000:8000"  # Map to 9000 to avoid conflicts
+    environment:
+      - CAR_AGENT_URL=http://car-diagnostic-agent:10011
+      - PORT=8000
+    depends_on:
+      - car-diagnostic-agent
+    restart: unless-stopped

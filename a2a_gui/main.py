@@ -53,7 +53,18 @@ async def shutdown_event():
 # Serve static files (Next.js build)
 static_dir = Path(__file__).parent / "frontend" / ".next"
 if static_dir.exists():
-    app.mount("/", StaticFiles(directory=static_dir), name="static")
+    # Mount the static directory for assets
+    app.mount("/_next/static", StaticFiles(directory=static_dir / "static"), name="static")
+    
+    # Serve the main page
+    @app.get("/")
+    async def root():
+        return FileResponse(static_dir / "server" / "app" / "index.html")
+    
+    # Serve the not-found page
+    @app.get("/_not-found")
+    async def not_found():
+        return FileResponse(static_dir / "server" / "app" / "_not-found.html")
 else:
     @app.get("/")
     async def root():
