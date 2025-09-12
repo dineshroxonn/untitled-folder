@@ -10,7 +10,7 @@ from fastapi import HTTPException
 from pydantic import BaseModel
 
 CAR_AGENT_URL = os.getenv("CAR_AGENT_URL", "http://localhost:10011")
-CAR_AGENT_TIMEOUT = int(os.getenv("CAR_AGENT_TIMEOUT", "60"))
+CAR_AGENT_TIMEOUT = int(os.getenv("CAR_AGENT_TIMEOUT", "10"))
 
 class AgentStatus(BaseModel):
     available: bool
@@ -21,10 +21,11 @@ class AgentStatus(BaseModel):
 class CarAgentClient:
     """Client for communicating with the car diagnostic agent."""
     
-    def __init__(self, base_url: str, timeout: int = 30):
+    def __init__(self, base_url: str, timeout: int = 10):
         self.base_url = base_url.rstrip('/')
         self.timeout = timeout
-        self.client = httpx.AsyncClient(timeout=timeout)
+        # Increase timeout for streaming connections
+        self.client = httpx.AsyncClient(timeout=httpx.Timeout(timeout, read=None))
     
     async def _agent_request(self, method: str, endpoint: str, **kwargs) -> httpx.Response:
         """Helper to make requests to the agent."""
@@ -41,7 +42,7 @@ class CarAgentClient:
     async def check_status(self) -> AgentStatus:
         """Check if the car diagnostic agent is available."""
         try:
-            response = await self.client.get(f"{self.base_url}/health", timeout=5)
+            response = await self.client.get(f"{self.base_url}/health", timeout=2)
             if response.status_code == 200:
                 return AgentStatus(available=True, agent_url=self.base_url, status_code=response.status_code)
             else:
@@ -80,13 +81,18 @@ class CarAgentClient:
             "id": "1"
         }
         try:
-            async with self.client.stream("POST", f"{self.base_url}/", json=payload, headers={"Content-Type": "application/json"}) as response:
+            # Use a longer timeout for streaming
+            timeout = httpx.Timeout(self.timeout, read=None)
+            async with self.client.stream("POST", f"{self.base_url}/", json=payload, headers={"Content-Type": "application/json"}, timeout=timeout) as response:
+                print(f"Stream response status: {response.status_code}")
                 if response.status_code != 200:
                     error_text = await response.aread()
+                    print(f"Stream error response: {error_text.decode()}")
                     yield f"data: {json.dumps({'error': f'Agent error {response.status_code}: {error_text.decode()}'})}\n\n"
                     return
 
                 async for line in response.aiter_lines():
+                    print(f"Received line: {line}")
                     if line.startswith("data:"):
                         try:
                             data_json = json.loads(line[5:])
@@ -97,13 +103,21 @@ class CarAgentClient:
                                         for part in result["status"]["message"]["parts"]:
                                             if part.get("kind") == "text" and part.get("text"):
                                                 yield f"data: {json.dumps({'content': part['text']})}\n\n"
-                        except json.JSONDecodeError:
+                        except json.JSONDecodeError as e:
+                            print(f"JSON decode error: {e}")
                             continue
+                    elif line.strip():  # Handle other types of lines
+                        print(f"Non-data line: {line}")
                 
                 yield f"data: {json.dumps({'status': 'complete'})}\n\n"
+        except httpx.ReadTimeout as e:
+            print(f"Read timeout during streaming: {e}")
+            yield f"data: {json.dumps({'error': f'Read timeout: {str(e)}'})}\n\n"
         except httpx.RequestError as e:
+            print(f"Request error during streaming: {e}")
             yield f"data: {json.dumps({'error': f'Connection error: {str(e)}'})}\n\n"
         except Exception as e:
+            print(f"Unexpected error during streaming: {e}")
             yield f"data: {json.dumps({'error': f'Unexpected error: {str(e)}'})}\n\n"
 
     async def close(self):
